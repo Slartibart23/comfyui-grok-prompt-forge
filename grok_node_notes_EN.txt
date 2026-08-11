@@ -1,0 +1,90 @@
+GROK TEXT REFINE — SETTINGS GUIDE
+==================================
+
+WHAT THIS NODE DOES
+Sends your input text plus a system prompt to the xAI Grok API and
+returns the generated text. Two typical modes:
+  A) CAPTION REFINEMENT  -> you want the SAME output every time
+  B) PROMPT GENERATION   -> you want a FRESH output every time
+
+----------------------------------------------------------------
+THE OPTIONS
+----------------------------------------------------------------
+
+model
+  Which Grok model handles the request (e.g. grok-4.5).
+  Note: some reasoning models partially ignore sampling settings.
+
+temperature  (0.0 - 2.0)
+  The main creativity dial. It reshapes the probability of every
+  word choice: low values make the model always pick its favorite
+  words (predictable, repetitive), high values give unusual words
+  a real chance (varied, surprising).
+    0.0 - 0.3  -> near-deterministic. Use for caption refinement.
+    0.7 - 0.9  -> balanced variety.
+    1.0 - 1.15 -> high variety. Use for prompt generation.
+    > 1.3      -> risk of broken grammar and word salad.
+
+top_p  (0.0 - 1.0)
+  A cutoff filter. Before picking a word, the model sorts all
+  candidates by probability and THROWS AWAY the unlikely tail.
+  top_p = 0.9 keeps only words covering the top 90% of probability;
+  everything below is impossible to pick, no matter the temperature.
+    1.0        -> nothing is cut off (full variety possible).
+    0.95-0.98  -> trims only true nonsense. Good default.
+    < 0.9      -> noticeably safer/blander output.
+  RULE OF THUMB: temperature shapes the dice, top_p removes dice
+  faces entirely. For variety: keep top_p HIGH (0.98-1.0) and
+  steer with temperature.
+
+presence_penalty  (-2.0 - 2.0)
+  Pushes the model away from words it has ALREADY USED in this
+  output, regardless of how often. Great against the model's
+  favorite stock phrases ("golden hour", "neon lights"...).
+    0.0        -> off (default).
+    0.3 - 0.6  -> gentle push toward new vocabulary. Recommended
+                  for prompt generation.
+    > 1.0      -> can get incoherent.
+
+frequency_penalty  (-2.0 - 2.0)
+  Like presence_penalty, but the push grows THE MORE OFTEN a word
+  repeats. Targets literal word repetition inside one output.
+    0.0        -> off (default).
+    0.2 - 0.5  -> reduces "she... she... she..." loops.
+
+seed + control_after_generate
+  NOT sent to the API. This is a cache-breaker: ComfyUI only
+  re-runs a node when one of its inputs changed.
+    randomize  -> node fires a NEW API call every queue run.
+                  Required for prompt generation!
+    fixed      -> identical requests reuse the cached result
+                  (saves money on repeated caption runs).
+
+max_tokens
+  Upper limit for the response length. 1024 is plenty for a
+  150-200 word image prompt. Too low = truncated prompts.
+
+timeout_seconds / fallback_to_input
+  Network safety: how long to wait, and whether to pass the
+  input text through unchanged if the API call fails (so a
+  batch never crashes mid-run).
+
+----------------------------------------------------------------
+RECOMMENDED PRESETS
+----------------------------------------------------------------
+
+PROMPT GENERATION (fresh, varied prompts):
+  temperature 1.0-1.1 | top_p 0.98 | presence_penalty 0.4
+  frequency_penalty 0.2 | seed: randomize
+
+CAPTION REFINEMENT (stable, repeatable):
+  temperature 0.2 | top_p 1.0 | penalties 0.0 | seed: fixed
+
+STILL GETTING SIMILAR IMAGES?
+Sampling settings add word-level variety, but they cannot stop
+the model from loving the same MOTIFS (same poses, same golden-
+hour backdrops). Fix that in the system prompt: add an explicit
+ban list ("Never use: golden hour, neon, rain-slicked streets,
+subject centered facing camera...") and/or feed randomized
+scene ingredients (location, camera angle, pose, light) into
+the CONTENT line via wildcards.
