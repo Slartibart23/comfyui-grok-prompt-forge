@@ -1,0 +1,61 @@
+GROK PROMPT FORGE — EINSTELLUNGEN (KURZ, DEUTSCH, v2.0.1)
+===========================================================
+
+temperature — Haupt-Kreativitätsregler.
+  Niedrig = vorhersehbar, wiederholend. Hoch = abwechslungsreich.
+  0.0-0.3 Caption-Verfeinerung | 1.0-1.15 Prompt-Generierung
+  Über ~1.3 drohen Grammatikfehler und Wortsalat.
+
+top_p — Abschneide-Filter (Nucleus Sampling).
+  Wirft vor jeder Wortwahl die unwahrscheinlichen Kandidaten
+  komplett weg. 1.0 = aus (wird nicht mitgeschickt).
+  Faustregel: HOCH lassen (0.98) und über temperature steuern.
+  temperature formt den Würfel, top_p entfernt ganze Würfelseiten
+  — und zwar genau bei den offenen Entscheidungen (Ort, Pose,
+  Licht), die deine Bilder unterscheiden. Nicht beide Regler
+  gleichzeitig stark verstellen.
+
+presence_penalty — "Das Wort hattest du schon."
+  Drückt bereits benutzte Wörter weg, egal wie oft sie vorkamen.
+  Gut gegen Lieblingsfloskeln. 0.0 = aus. 0.3-0.6 für Generierung.
+
+frequency_penalty — "Das Wort wiederholst du dauernd."
+  Strafe wächst mit jeder Wiederholung. Gegen Wortschleifen.
+  0.0 = aus. 0.2-0.5 bei Bedarf.
+
+  ACHTUNG zu beiden Penalties: Manche Modelle (z.B. grok-4.5)
+  lehnen sie ab. Die Node entfernt den abgelehnten Parameter dann
+  automatisch und sendet erneut (siehe Konsole) — der Queue läuft
+  weiter, aber die Regler wirken bei diesen Modellen NICHT.
+  Varianz kommt dann nur aus temperature + System-Prompt.
+
+seed + control after generate — Cache-Brecher, geht NICHT an die API.
+  randomize = jeder Queue-Lauf ein frischer API-Aufruf.
+              Für Prompt-Generierung Pflicht!
+  fixed     = identische Anfragen nutzen den Cache (spart Geld
+              bei wiederholter Caption-Verfeinerung).
+
+max_tokens — Längenlimit der Antwort. 1024 reicht für 150-200
+  Wörter locker. Zu niedrig = abgeschnittene Prompts.
+
+fallback_to_input / timeout_seconds — Bei API-Fehler Eingabetext
+  unverändert durchreichen (Batch bricht nie ab) / Wartezeit
+  pro Versuch (3 Versuche gesamt).
+
+-----------------------------------------------------------
+PRESETS
+  Prompt-Generierung:    temp 1.0-1.1 | top_p 0.98 |
+                         Penalties 0.4/0.2 (wenn Modell sie kann,
+                         sonst egal) | seed: randomize
+  Caption-Verfeinerung:  temp 0.2 | top_p 1.0 | Penalties 0.0 |
+                         seed: fixed
+
+IMMER NOCH ÄHNLICHE BILDER?
+  Sampling variiert nur die WORTWAHL, nicht die MOTIVE. Dagegen:
+  1. Verbotsliste in den System-Prompt ("Never use: golden hour,
+     neon, rain-slicked streets, subject centered facing
+     camera...") — erweitern, sobald sich ein Klischee wiederholt.
+  2. Zufällige Szenen-Zutaten (Ort, Winkel, Pose, Licht) per
+     Wildcards oder Text File Loader (loop_at_end) in die
+     CONTENT-Zeile einspeisen.
+  Sampling liefert das Rauschen — Wildcards liefern die Ideen.
