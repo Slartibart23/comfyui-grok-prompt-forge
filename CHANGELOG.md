@@ -1,5 +1,9 @@
 # Changelog
 
+## 3.0.1 — 2026-10-24
+
+- Multi-agent models (e.g. `grok-4.20-multi-agent-0309`) are no longer listed in the model dropdown. The xAI API rejects them on chat completions, which these nodes use.
+
 ## 3.0.0 — 2026-10-24
 
 - **New node: Grok Prompt Forge (xAI).** One node for prompt writing, caption rewriting and image captioning:

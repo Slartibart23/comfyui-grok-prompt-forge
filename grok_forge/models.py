@@ -18,7 +18,6 @@ LOG = "[Grok Prompt Forge]"
 FALLBACK_MODELS = [
     "grok-4.20-0309-reasoning",
     "grok-4.20-0309-non-reasoning",
-    "grok-4.20-multi-agent-0309",
     "grok-4.3",
     "grok-4.5",
     "grok-4.6",
@@ -33,9 +32,15 @@ def _cache_path():
     return os.path.join(user_dir(), "models.json")
 
 
+def _usable(model_id):
+    # Multi-agent models are rejected on chat completions ("Multi Agent
+    # requests are not allowed on chat completions"), which this pack uses.
+    return "multi-agent" not in model_id
+
+
 def _ordered(ids):
-    """Default model first, the rest sorted."""
-    rest = sorted(set(ids) - {DEFAULT_MODEL})
+    """Default model first, the rest sorted; models the nodes can't call are dropped."""
+    rest = sorted({i for i in ids if _usable(i)} - {DEFAULT_MODEL})
     return [DEFAULT_MODEL] + rest
 
 

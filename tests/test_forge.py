@@ -228,7 +228,8 @@ class ForgeNodeTests(unittest.TestCase):
 
 class ModelListTests(unittest.TestCase):
     def test_refresh_puts_default_first_and_caches(self):
-        body = {"models": [{"id": "grok-9"}, {"id": "grok-4.20-0309-reasoning"}, {"id": "grok-1"}]}
+        body = {"models": [{"id": "grok-9"}, {"id": "grok-4.20-0309-reasoning"}, {"id": "grok-1"},
+                           {"id": "grok-4.20-multi-agent-0309"}]}
         with mock.patch.dict(os.environ, {"XAI_API_KEY": "k"}), \
                 mock.patch("requests.get", return_value=FakeResponse(200, body)):
             result = models.refresh()
