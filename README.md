@@ -93,7 +93,9 @@ The default model is **`grok-4.20-0309-reasoning`**. Tested against the API on 2
 - It thinks before answering, and the hidden reasoning counts against `max_tokens`. An edit instruction took about 3 500 reasoning tokens. The presets therefore use 8192–12288; you only pay for the tokens actually used.
 - If `max_tokens` runs out before any answer is written, the node reports it clearly instead of returning an empty string.
 
-The model dropdown lists every model your key can use. It is loaded from the API at start-up and on **🔄 Refresh model list**, and cached in `ComfyUI/user/grok_prompt_forge/models.json`.
+The model dropdown lists every model your key can use with these nodes. It is loaded from the API at start-up and on **🔄 Refresh model list**, and cached in `ComfyUI/user/grok_prompt_forge/models.json`.
+
+Multi-agent models such as `grok-4.20-multi-agent-0309` are left out. The API rejects them on chat completions ("Multi Agent requests are not allowed on chat completions"), which these nodes use. They are research models that run several agents in parallel to search and cross-check facts, so they bring nothing for prompt writing.
 
 ## Sampling: temperature and top_p
 
