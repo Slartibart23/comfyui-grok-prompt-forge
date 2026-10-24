@@ -18,16 +18,19 @@ PERSON_SLOTS = 4
 STYLE_SLOTS = 2
 
 PERSON_TOOLTIP = (
-    "Person {n} from your library (button '👤 Persons & styles...'): name, LoRA "
-    "trigger, description and voice are put into the prompt and are binding. In "
-    "your text, refer to the person by name or as 'Person {n}'. (none) = no person.")
+    "Person {n} from your library (button '👤 Persons & styles...'). Name, LoRA "
+    "trigger, description and voice go into the prompt and are binding; the name "
+    "always appears, so every pose and action is clearly assigned to this person. "
+    "In your text, refer to the person by name or as 'Person {n}'. (none) = no person.")
 LINK_TOOLTIP = (
-    "On: image_N shows Person N (person_4 has no image slot). The prompt then "
-    "points at the reference image instead of describing the face in words. Most "
-    "useful for Qwen-Image-Edit (<imageN>), MiniMax H3 REF2VA (<Picture N>), "
-    "Wan 2.7 / 3.0 reference-to-video ('Image N') and FLUX.2 multi-reference. For "
-    "other models the image only serves as the look to describe. Turn it off when "
-    "the images mean something else (e.g. H3 FL2VA first and last frame).")
+    "Pairs each person with the image input of the same number: person_1 = image_1, "
+    "person_2 = image_2, person_3 = image_3 (person_4 has no image input).\n"
+    "On: when you load a photo of the person into the matching image input, Grok is "
+    "told 'this image shows this person' and takes the look from the photo. With "
+    "Qwen-Image-Edit, MiniMax H3 REF2VA, Wan 2.7/3.0 and FLUX.2 the prompt points at "
+    "the image (e.g. <image1>) instead of describing the face.\n"
+    "Off: images and persons are unrelated - use this when the images mean something "
+    "else, e.g. first and last frame for MiniMax H3 FL2VA.")
 STYLE_TOOLTIP = (
     "Style block {n} from your library (button '👤 Persons & styles...'): a saved "
     "text such as a camera look, a lighting mood or a ban list. It is applied to "
@@ -80,16 +83,28 @@ def persons_rule(persons, image_slots, link_images):
     lines = ["## Persons (binding)",
              "These persons must appear in the result exactly as defined below - even if "
              "the user's input does not mention them. The input may refer to them by "
-             "name or as \"Person N\". The names are labels only: never write a name into "
-             "the result unless it is the person's trigger."]
+             "name or as \"Person N\".",
+             "- Every person's NAME must appear in the result, spelled exactly as given; "
+             "it identifies the person and can work as a trigger. Introduce each person "
+             "once with name, trigger (if any) and description, e.g. \"<Name>, <trigger>, "
+             "<description>\".",
+             "- Assign every pose, action, position, gaze, line of dialogue and "
+             "interaction explicitly to a person by name (\"<Name A> hands <Name B> the "
+             "cup\"). Never use an ambiguous pronoun or a generic word (\"the woman\", "
+             "\"she\") where it could mean more than one person.",
+             "- In tag lists: put each person's name first among that person's tags, then "
+             "the trigger and the description as tags.",
+             "- In formats with reference labels or speaker IDs (<Subject N>, (S1), "
+             "<image1>), keep those labels and add the name next to them."]
     for slot, name, entry in persons:
-        lines.append(f"\nPerson {slot} (\"{name}\"):")
-        if entry["trigger"]:
-            lines.append(f"- Trigger: {entry['trigger']} - write it exactly like this as the "
-                         "person's name in the result (in tag lists: first among this "
-                         "person's tags).")
-        else:
-            lines.append("- No trigger: introduce the person through the description.")
+        lines.append(f"\nPerson {slot}:")
+        lines.append(f"- Name: {name} - write it exactly like this.")
+        trigger = entry["trigger"]
+        if trigger and trigger.lower() != name.lower():
+            lines.append(f"- Trigger: {trigger} - write it exactly like this right after "
+                         "the name when the person is introduced.")
+        elif trigger:
+            lines.append("- The name is also the trigger.")
         if entry["description"]:
             lines.append(f"- Description (binding; in tag lists as tags): {entry['description']}")
         if entry["voice"]:
@@ -146,7 +161,8 @@ IMAGE_TOOLTIP = (
     "objects, style).\n"
     "- Wan image-to-video: image_1 = start frame.\n"
     "- Every other preset: optional visual context Grok may take details from.\n"
-    "- With person_{n} set and link_person_images on: image_{n} shows that person.\n"
+    "- With person_{n} set and link_person_images on: image_{n} is a photo of that "
+    "person.\n"
     "Images cost extra tokens; max_side controls the upload size."
 )
 

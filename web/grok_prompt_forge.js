@@ -251,7 +251,7 @@ const LIBRARY = {
     tab: "👤 Persons", slots: ["person_1", "person_2", "person_3", "person_4"],
     fields: [
       { key: "trigger", label: "Trigger", rows: 1,
-        hint: "The LoRA's trigger token or name, written into the prompt exactly like this. Empty = no trigger (the person is introduced by the description)." },
+        hint: "The LoRA's trigger token, written into the prompt exactly like this right after the name. Leave empty if the name itself is the trigger or there is no LoRA." },
       { key: "description", label: "Description", rows: 5,
         hint: "Appearance and fixed traits (face, hair, body, age, typical look). Binding in every prompt; tag models get it as tags." },
       { key: "voice", label: "Voice", rows: 2,
@@ -334,11 +334,14 @@ async function openLibrary(node, startKind = "person") {
     renderList();
     const spec = LIBRARY[kind];
     const values = selected ? entries()[selected] : {};
-    const nameInput = el("input", { value: selected ?? "", placeholder: "Name shown in the selection box",
+    const nameInput = el("input", { value: selected ?? "", placeholder: kind === "person"
+      ? "Name of the person (appears in every prompt)" : "Name shown in the selection box",
       style: INPUT_STYLE });
     const inputs = {};
     const rows = [el("label", { textContent: "Name" }), nameInput,
-      el("div", { textContent: "Only a label for the selection box - it is never written into the prompt.", style: HINT_STYLE })];
+      el("div", { textContent: kind === "person"
+        ? "Shown in the selection box AND written into every prompt exactly like this, so poses and actions are clearly assigned. It can also act as the trigger."
+        : "Only a label for the selection box - it is never written into the prompt.", style: HINT_STYLE })];
     for (const f of spec.fields) {
       const input = f.rows > 1
         ? el("textarea", { value: values[f.key] ?? "", rows: f.rows, style: { ...INPUT_STYLE, resize: "vertical" } })

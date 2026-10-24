@@ -3,8 +3,9 @@
 ## 3.2.0 — 2026-10-24
 
 - **Persons:** up to four persons per prompt (`person_1` … `person_4`) from your own library.
-  - Each person has a name (a label only, never written into the prompt), a LoRA trigger, a description and a voice.
-  - Selected persons are binding: the trigger is written exactly, and the description is used as given (as tags in tag models).
+  - Each person has a name, a LoRA trigger, a description and a voice.
+  - Selected persons are binding. The name always appears in the prompt and can also act as the trigger. The trigger is written exactly, and the description is used as given (as tags in tag models).
+  - Every pose, action and line of dialogue is attributed to a person by name.
   - The voice is used only by models with audio (MiniMax H3, Wan 2.7, Wan 3.0).
   - Your text can refer to them by name or as "Person N".
 - **Linked reference images:** with `link_person_images` on, `image_N` shows Person N. The prompt then points at the image with the model's reference syntax (`<imageN>`, `<Picture N>`, "Image N") instead of describing the face.

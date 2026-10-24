@@ -92,12 +92,16 @@ For Illustrious, Pony and SDXL they follow the model cards plus established comm
 
 | Library entry | Fields | Used by |
 |---|---|---|
-| Person | **Name:** a label for the selection box, never written into the prompt. **Trigger:** the LoRA's trigger token, written exactly. **Description:** appearance and fixed traits, binding. **Voice:** timbre, pitch, pace, accent. | `person_1` … `person_4`. The voice is used only by MiniMax H3 FL2VA / REF2VA, Wan 2.7 and Wan 3.0, the models with audio. |
+| Person | **Name:** written into every prompt exactly as given, so every pose and action is clearly assigned; it can also act as the trigger. **Trigger:** the LoRA's trigger token, written right after the name (leave it empty if the name is the trigger). **Description:** appearance and fixed traits, binding. **Voice:** timbre, pitch, pace, accent. | `person_1` … `person_4`. The voice is used only by MiniMax H3 FL2VA / REF2VA, Wan 2.7 and Wan 3.0, the models with audio. |
 | Style block | **Text:** e.g. a camera look, a lighting mood or a ban list | `style_1`, `style_2`; applied to every result |
 
-- **Using persons in your text:** refer to a selected person by name or as "Person 1"…"Person 4". Selected persons always appear in the result, even if the text doesn't mention them. Tag models (Pony, Illustrious, SDXL) get the trigger first and the description as tags.
-- **`link_person_images`** (on by default): `image_N` shows Person N; `person_4` has no image slot. The prompt then refers to the image with the model's reference syntax instead of describing the face.
-  - Most useful for Qwen-Image-Edit (`<imageN>`), MiniMax H3 REF2VA (`<Picture N>`), Wan 2.7 / 3.0 reference-to-video ("Image N") and FLUX.2 multi-reference.
+- **Using persons in your text:** refer to a selected person by name or as "Person 1"…"Person 4". Selected persons always appear in the result, even if the text doesn't mention them.
+  - Each person is introduced once as "name, trigger, description".
+  - After that, every pose, action, gaze and line of dialogue is attributed to a person by name, with no ambiguous "she" or "the woman" when several persons are present.
+  - Tag models (Pony, Illustrious, SDXL) get the name first, then the trigger, then the description as tags.
+- **`link_person_images`** (on by default) pairs each person with the image input of the same number: `person_1` = `image_1`, `person_2` = `image_2`, `person_3` = `image_3`. `person_4` has no image input.
+  - Load a photo of the person into the matching image input, and Grok takes the look from it.
+  - With Qwen-Image-Edit (`<imageN>`), MiniMax H3 REF2VA (`<Picture N>`), Wan 2.7 / 3.0 reference-to-video ("Image N") and FLUX.2 multi-reference, the prompt points at the image instead of describing the face.
   - Turn it off when the images mean something else, e.g. the first and last frame of H3 FL2VA.
 - **Export / Import** in the dialog moves the library between installs. On import you choose whether names that already exist are replaced or kept.
 - **Archive:** with `archive` on, every result is appended to `ComfyUI/user/grok_prompt_forge/archive.jsonl` together with its input, preset, persons and settings. **📜 Load from archive...** searches it:

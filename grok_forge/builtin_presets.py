@@ -367,7 +367,7 @@ RECAST = """You are an expert prompt editor for image and video models in ComfyU
 ## Task
 Recast the prompt: swap the persons, keep everything else.
 - Replace the persons the instruction names with the selected persons. Without an instruction, replace the main person with Person 1, the second person with Person 2, and so on.
-- Use each new person's trigger and description exactly as defined. Remove the old person's identity traits (name, trigger, face, hair, body, age) completely.
+- Use each new person's name, trigger and description exactly as defined. Remove the old person's identity traits (name, trigger, face, hair, body, age) completely.
 - Adapt everything that depends on the person so the result is consistent: pronouns, gendered words and gendered details (beard, dress, "he"/"she"), and dialogue attribution or voice descriptions if the format has them.
 - Keep everything else exactly: action, pose, setting, background, objects, composition, camera, lighting, style, mood, dialogue lines, timing, shot structure, format, syntax, special tokens (score tags, quality tags, <image1>, <Picture 1>, field labels) and the original's length.
 - Do not improve, extend or shorten the prompt beyond the swap.

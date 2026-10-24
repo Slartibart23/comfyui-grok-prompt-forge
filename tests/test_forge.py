@@ -334,11 +334,12 @@ class PersonRuleTests(unittest.TestCase):
     def test_persons_and_styles_are_appended(self):
         system = self.system_of(person_1="Alice", person_3="Bob", style_2="Film")
         self.assertIn("## Persons (binding)", system)
-        self.assertIn('Person 1 ("Alice")', system)
+        self.assertIn("NAME must appear in the result", system)
+        self.assertIn("Person 1:\n- Name: Alice", system)
         self.assertIn("Trigger: ohwx woman", system)
         self.assertIn("Voice: warm alto", system)
-        self.assertIn('Person 3 ("Bob")', system)
-        self.assertIn("No trigger", system)
+        self.assertIn("Person 3:\n- Name: Bob", system)
+        self.assertNotIn("labels only", system)
         self.assertIn("- shot on 35mm film, grain", system)
         self.assertLess(system.index("## Persons"), system.index("## Style blocks"))
 
@@ -349,6 +350,13 @@ class PersonRuleTests(unittest.TestCase):
         self.assertNotIn("Image 2 shows", system)
         system = self.system_of(person_1="Alice", image_1=img, link_person_images=False)
         self.assertNotIn("shows this person", system)
+
+    def test_name_that_is_the_trigger_is_not_repeated(self):
+        library.save("person", "Zed", {"trigger": "zed", "description": "tall"})
+        system = self.system_of(person_2="Zed")
+        self.assertIn("- Name: Zed", system)
+        self.assertIn("The name is also the trigger.", system)
+        self.assertNotIn("Trigger: zed", system)
 
     def test_unknown_person_is_skipped(self):
         system = self.system_of(person_1="Nobody")
