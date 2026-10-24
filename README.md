@@ -25,6 +25,14 @@ Edit instruction with reference images:
 
 ## Grok Prompt Forge (xAI)
 
+### Language
+
+The switch **🌐 Language / Sprache** at the top of the node shows the node in **English** or **Deutsch**: field labels, tooltips, inputs and outputs, buttons, dialogs, notifications and preset notes.
+
+- It only changes what you see. It is not saved in the workflow, it doesn't re-run the node, and it is remembered in your browser for all Grok Prompt Forge nodes.
+- Preset names stay English because they are saved in workflows.
+- The system prompts sent to Grok and the generated prompt stay English.
+
 ### Presets
 
 Choosing a preset fills `system_prompt`, `negative_prompt`, `temperature`, `top_p` and `max_tokens` with values tuned for that task, and a short note about the preset pops up. You can change any of these values on the node.
@@ -99,7 +107,7 @@ For Illustrious, Pony and SDXL they follow the model cards plus established comm
   - Each person is introduced once as "name, trigger, description".
   - After that, every pose, action, gaze and line of dialogue is attributed to a person by name, with no ambiguous "she" or "the woman" when several persons are present.
   - Tag models (Pony, Illustrious, SDXL) get the name first, then the trigger, then the description as tags.
-- **`link_person_images`** (on by default) pairs each person with the image input of the same number: `person_1` = `image_1`, `person_2` = `image_2`, `person_3` = `image_3`. `person_4` has no image input.
+- **`image_n_is_person_n`** (on by default) pairs each person with the image input of the same number: `person_1` = `image_1`, `person_2` = `image_2`, `person_3` = `image_3`. `person_4` has no image input.
   - Load a photo of the person into the matching image input, and Grok takes the look from it.
   - With Qwen-Image-Edit (`<imageN>`), MiniMax H3 REF2VA (`<Picture N>`), Wan 2.7 / 3.0 reference-to-video ("Image N") and FLUX.2 multi-reference, the prompt points at the image instead of describing the face.
   - Turn it off when the images mean something else, e.g. the first and last frame of H3 FL2VA.

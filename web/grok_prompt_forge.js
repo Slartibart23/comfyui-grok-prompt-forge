@@ -7,6 +7,10 @@
 // - "Persons & styles..." edits your library (ComfyUI/user/grok_prompt_forge/
 //   library.json) with export / import; person_1..4 and style_1..2 follow it
 // - "Load from archive..." puts an archived prompt into the text field
+// - the language switch at the top shows the node in English or German
+//   (display only, remembered in this browser; see grok_prompt_forge_i18n.js)
+
+import { LANGUAGES, NODE_TEXT_DE, STRINGS } from "./grok_prompt_forge_i18n.js";
 
 const { app } = window.comfyAPI.app;
 const { api } = window.comfyAPI.api;
@@ -16,7 +20,86 @@ const FIELDS = ["system_prompt", "negative_prompt", "temperature", "top_p", "max
 const WORD_FIELDS = ["min_words", "max_words"];
 const TITLE = "Grok Prompt Forge";
 const CUSTOM = "Custom system prompt"; // built-in preset name, see builtin_presets.py
+const LANG_WIDGET = "grok_language";
+const LANG_KEY = "grokPromptForge.language";
 
+// ----------------------------------------------------------------- language
+let lang = (() => {
+  try {
+    return localStorage.getItem(LANG_KEY) === "de" ? "de" : "en";
+  } catch {
+    return "en";
+  }
+})();
+
+function t(key, ...args) {
+  const value = STRINGS[lang][key] ?? STRINGS.en[key];
+  return typeof value === "function" ? value(...args) : value;
+}
+
+function specTooltip(node, name) {
+  const spec = node.constructor.nodeData?.input;
+  return (spec?.required?.[name] ?? spec?.optional?.[name])?.[1]?.tooltip;
+}
+
+// Labels and tooltips of one node in the current language. Only what is shown
+// changes: widget names, values and the saved workflow stay the same.
+function applyLanguage(node) {
+  const de = lang === "de";
+  for (const w of node.widgets || []) {
+    if (w._grokText) {
+      w.label = t(w._grokText);
+      continue;
+    }
+    const text = NODE_TEXT_DE[w.name];
+    if (!text) continue;
+    // remember the English texts once, to switch back to them
+    w._grokEn ??= { label: w.label, tooltip: w.tooltip ?? specTooltip(node, w.name),
+                    placeholder: w.inputEl?.placeholder };
+    w.label = de ? text.label : w._grokEn.label;
+    if (!WORD_FIELDS.includes(w.name)) w.tooltip = de ? text.tooltip : w._grokEn.tooltip;
+    if (w.inputEl) w.inputEl.placeholder = de ? text.label : w._grokEn.placeholder;
+  }
+  const slots = [...(node.inputs || []).filter((i) => !i.widget).map((i) => [i, i.name]),
+                 ...(node.outputs || []).map((o) => [o, `output:${o.name}`])];
+  for (const [slot, key] of slots) { // widget inputs follow their widget
+    const text = NODE_TEXT_DE[key];
+    if (!text) continue;
+    // slot labels are saved with the workflow: only undo our own German label
+    if (de) slot.label = text.label;
+    else if (slot.label === text.label) slot.label = undefined;
+  }
+  showWordHint(node);
+  node.setDirtyCanvas?.(true, true);
+}
+
+function setLanguage(value) {
+  lang = value === "de" ? "de" : "en";
+  try {
+    localStorage.setItem(LANG_KEY, lang);
+  } catch {
+    // private window or blocked storage: the switch still works for this page
+  }
+  for (const node of forgeNodes()) {
+    const w = widget(node, LANG_WIDGET);
+    if (w) w.value = LANGUAGES[lang];
+    applyLanguage(node);
+  }
+}
+
+// The switch sits at the very top and is never saved with the workflow, so the
+// positions of the saved widget values do not change.
+function addLanguageSwitch(node) {
+  const w = node.addWidget("combo", LANG_WIDGET, LANGUAGES[lang], (value) => {
+    setLanguage(Object.keys(LANGUAGES).find((k) => LANGUAGES[k] === value) ?? "en");
+  }, { values: Object.values(LANGUAGES), serialize: false });
+  w.serialize = false;
+  w.label = STRINGS.en.language;
+  node.widgets.splice(node.widgets.indexOf(w), 1);
+  node.widgets.unshift(w);
+}
+
+// ------------------------------------------------------------------ presets
 let presetsPromise = null;
 function loadPresets(force = false) {
   if (force || !presetsPromise) {
@@ -43,17 +126,17 @@ function forgeNodes() {
 }
 
 function toast(severity, summary, detail) {
-  const t = app.extensionManager?.toast;
-  if (t?.add) t.add({ severity, summary, detail, life: 4000 });
+  const toaster = app.extensionManager?.toast;
+  if (toaster?.add) toaster.add({ severity, summary, detail, life: 4000 });
   else console.log(`[${TITLE}] ${summary}: ${detail ?? ""}`);
 }
 
 async function askName(defaultValue) {
   const dialog = app.extensionManager?.dialog;
   if (dialog?.prompt) {
-    return dialog.prompt({ title: "Save preset as...", message: "Name of the preset:", defaultValue });
+    return dialog.prompt({ title: t("savePresetTitle"), message: t("presetName"), defaultValue });
   }
-  return window.prompt("Name of the preset:", defaultValue);
+  return window.prompt(t("presetName"), defaultValue);
 }
 
 async function confirmBox(message) {
@@ -69,20 +152,21 @@ function setValue(node, name, value) {
   w.callback?.(value);
 }
 
+const presetText = (preset, key) => (lang === "de" && preset?.[`${key}_de`]) || preset?.[key] || "";
+
 // min_words / max_words: the tooltip names the length the selected preset's
 // target model recommends.
 async function showWordHint(node) {
   const name = widget(node, "preset")?.value;
   const preset = (await loadPresets()).find((p) => p.name === name);
-  const hint = preset?.words
-    ? `Recommended for "${name}": ${preset.words}.`
-    : "This preset has no recommended length.";
+  const words = presetText(preset, "words");
+  const hint = words ? t("recommended", name, words) : t("noLength");
   for (const f of WORD_FIELDS) {
     const w = widget(node, f);
     if (!w) continue;
     // the general explanation is in the node definition, not on the widget
-    w._grokBaseTooltip ??= node.constructor.nodeData?.input?.optional?.[f]?.[1]?.tooltip ?? "";
-    w.tooltip = `${hint}\n\n${w._grokBaseTooltip}`;
+    const base = lang === "de" ? NODE_TEXT_DE[f].tooltip : specTooltip(node, f) ?? "";
+    w.tooltip = `${hint}\n\n${base}`;
   }
 }
 
@@ -92,9 +176,10 @@ async function applyPreset(node, name, announce = false) {
   for (const f of FIELDS) setValue(node, f, preset[f]);
   await showWordHint(node);
   node.setDirtyCanvas?.(true, true);
-  if (announce && preset.description) {
-    const words = preset.words ? `\nLength: ${preset.words}.` : "";
-    toast("info", name, preset.description + words);
+  const description = presetText(preset, "description");
+  if (announce && description) {
+    const words = presetText(preset, "words");
+    toast("info", name, description + (words ? `\n${t("length")}: ${words}.` : ""));
   }
 }
 
@@ -116,9 +201,7 @@ async function savePreset(node) {
   if (!name) return;
   const existing = list.find((p) => p.name === name);
   if (existing) {
-    const what = existing.builtin
-      ? `"${name}" is a built-in preset. Save your values in its place? (Delete brings the built-in values back.)`
-      : `Overwrite your preset "${name}"?`;
+    const what = existing.builtin ? t("overwriteBuiltin", name) : t("overwriteOwn", name);
     if (!(await confirmBox(what))) return;
   }
   const values = { description: existing?.description ?? "" };
@@ -129,12 +212,12 @@ async function savePreset(node) {
     body: JSON.stringify({ name, values }),
   });
   const data = await resp.json();
-  if (!resp.ok) return toast("error", "Preset not saved", data.error);
+  if (!resp.ok) return toast("error", t("presetNotSaved"), data.error);
   presetsPromise = Promise.resolve(data.presets);
   updatePresetLists(data.presets);
   widget(node, "preset").value = name;
   node.setDirtyCanvas?.(true, true);
-  toast("success", "Preset saved", name);
+  toast("success", t("presetSaved"), name);
 }
 
 async function deletePreset(node) {
@@ -142,11 +225,9 @@ async function deletePreset(node) {
   const preset = (await loadPresets()).find((p) => p.name === name);
   if (!preset) return;
   if (preset.builtin && !preset.overridden) {
-    return toast("info", "Built-in preset", `"${name}" ships with the node pack and cannot be deleted.`);
+    return toast("info", t("builtinPreset"), t("builtinCannotDelete", name));
   }
-  const question = preset.builtin
-    ? `Discard your saved values for "${name}" and go back to the built-in values?`
-    : `Delete your preset "${name}"?`;
+  const question = preset.builtin ? t("discardOverride", name) : t("deleteOwnPreset", name);
   if (!(await confirmBox(question))) return;
   const resp = await api.fetchApi("/grok_prompt_forge/presets/delete", {
     method: "POST",
@@ -154,7 +235,7 @@ async function deletePreset(node) {
     body: JSON.stringify({ name }),
   });
   const data = await resp.json();
-  if (!resp.ok) return toast("error", "Preset not deleted", data.error);
+  if (!resp.ok) return toast("error", t("presetNotDeleted"), data.error);
   presetsPromise = Promise.resolve(data.presets);
   if (preset.builtin) {
     await applyPreset(node, name);
@@ -163,7 +244,7 @@ async function deletePreset(node) {
     widget(node, "preset").value = CUSTOM;
   }
   updatePresetLists(data.presets);
-  toast("success", preset.builtin ? "Built-in values restored" : "Preset deleted", name);
+  toast("success", preset.builtin ? t("builtinRestored") : t("presetDeleted"), name);
 }
 
 async function refreshModels(node) {
@@ -175,16 +256,18 @@ async function refreshModels(node) {
     if (w && models.length) w.options.values = models.includes(w.value) ? models : [w.value, ...models];
   }
   node.setDirtyCanvas?.(true, true);
-  if (!resp.ok) toast("warn", "Model list not refreshed", data.error);
-  else toast("success", "Model list refreshed", `${models.length} models`);
+  if (!resp.ok) toast("warn", t("modelsNotRefreshed"), data.error);
+  else toast("success", t("modelsRefreshed"), t("nModels", models.length));
 }
 
-function addButton(node, label, handler) {
-  const w = node.addWidget("button", label, null, () => {
-    handler(node).catch((e) => toast("error", label, String(e)));
+// textKey: key in STRINGS for the button's label in the current language
+function addButton(node, textKey, handler) {
+  const w = node.addWidget("button", STRINGS.en[textKey], null, () => {
+    handler(node).catch((e) => toast("error", t(textKey), String(e)));
   });
   w.serialize = false;
   w.options = { ...(w.options || {}), serialize: false };
+  w._grokText = textKey;
   return w;
 }
 
@@ -248,22 +331,16 @@ function modal(title, width = "820px") {
 // -------------------------------------------------- persons & style blocks
 const LIBRARY = {
   person: {
-    tab: "👤 Persons", slots: ["person_1", "person_2", "person_3", "person_4"],
+    tab: "tabPersons", slots: ["person_1", "person_2", "person_3", "person_4"],
     fields: [
-      { key: "trigger", label: "Trigger", rows: 1,
-        hint: "The LoRA's trigger token, written into the prompt exactly like this right after the name. Leave empty if the name itself is the trigger or there is no LoRA." },
-      { key: "description", label: "Description", rows: 5,
-        hint: "Appearance and fixed traits (face, hair, body, age, typical look). Binding in every prompt; tag models get it as tags." },
-      { key: "voice", label: "Voice", rows: 2,
-        hint: "Timbre, pitch, pace, accent, e.g. 'deep raspy male voice, slow, northern German accent'. Used only by models with audio: MiniMax H3 FL2VA / REF2VA, Wan 2.7, Wan 3.0. Ignored by Wan 2.2 and all image models." },
+      { key: "trigger", label: "triggerLabel", hint: "triggerHint", rows: 1 },
+      { key: "description", label: "descriptionLabel", hint: "descriptionHint", rows: 5 },
+      { key: "voice", label: "voiceLabel", hint: "voiceHint", rows: 2 },
     ],
   },
   style: {
-    tab: "🎨 Style blocks", slots: ["style_1", "style_2"],
-    fields: [
-      { key: "text", label: "Text", rows: 6,
-        hint: "Applied to every result while selected, e.g. a camera look ('shot on 35mm film, grain, muted colours'), a lighting mood or a ban list ('never: golden hour, neon lights')." },
-    ],
+    tab: "tabStyles", slots: ["style_1", "style_2"],
+    fields: [{ key: "text", label: "textLabel", hint: "textHint", rows: 6 }],
   },
 };
 
@@ -300,7 +377,7 @@ async function openLibrary(node, startKind = "person") {
   let data = await fetchLibrary();
   let kind = startKind;
   let selected = null; // name being edited, null = new entry
-  const { body } = modal("Grok Prompt Forge · persons & style blocks");
+  const { body } = modal(t("libTitle"));
 
   const tabs = el("div", { style: { display: "flex", gap: "6px", marginBottom: "12px" } });
   const main = el("div", { style: { display: "flex", gap: "14px", minHeight: "360px" } });
@@ -316,41 +393,39 @@ async function openLibrary(node, startKind = "person") {
 
   function renderTabs() {
     tabs.replaceChildren(...Object.entries(LIBRARY).map(([k, spec]) =>
-      button(spec.tab, () => { kind = k; selected = null; render(); },
+      button(t(spec.tab), () => { kind = k; selected = null; render(); },
         k === kind ? { borderColor: "var(--p-primary-color, #4a90e2)", fontWeight: "bold" } : {})));
   }
 
   function renderList() {
     const names = Object.keys(entries()).sort((a, b) => a.localeCompare(b));
     list.replaceChildren(
-      button("＋ New", () => { selected = null; renderForm(); }, { textAlign: "left" }),
+      button(t("newEntry"), () => { selected = null; renderForm(); }, { textAlign: "left" }),
       ...names.map((n) => button(n, () => { selected = n; renderForm(); }, {
         textAlign: "left", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
         ...(n === selected ? { borderColor: "var(--p-primary-color, #4a90e2)" } : {}) })),
-      names.length ? "" : el("div", { textContent: "Nothing saved yet.", style: HINT_STYLE }));
+      names.length ? "" : el("div", { textContent: t("nothingSaved"), style: HINT_STYLE }));
   }
 
   function renderForm() {
     renderList();
     const spec = LIBRARY[kind];
     const values = selected ? entries()[selected] : {};
-    const nameInput = el("input", { value: selected ?? "", placeholder: kind === "person"
-      ? "Name of the person (appears in every prompt)" : "Name shown in the selection box",
-      style: INPUT_STYLE });
+    const isPerson = kind === "person";
+    const nameInput = el("input", { value: selected ?? "",
+      placeholder: t(isPerson ? "namePlaceholderPerson" : "namePlaceholderStyle"), style: INPUT_STYLE });
     const inputs = {};
-    const rows = [el("label", { textContent: "Name" }), nameInput,
-      el("div", { textContent: kind === "person"
-        ? "Shown in the selection box AND written into every prompt exactly like this, so poses and actions are clearly assigned. It can also act as the trigger."
-        : "Only a label for the selection box - it is never written into the prompt.", style: HINT_STYLE })];
+    const rows = [el("label", { textContent: t("name") }), nameInput,
+      el("div", { textContent: t(isPerson ? "nameHintPerson" : "nameHintStyle"), style: HINT_STYLE })];
     for (const f of spec.fields) {
       const input = f.rows > 1
         ? el("textarea", { value: values[f.key] ?? "", rows: f.rows, style: { ...INPUT_STYLE, resize: "vertical" } })
         : el("input", { value: values[f.key] ?? "", style: INPUT_STYLE });
-      input.title = f.hint;
+      input.title = t(f.hint);
       inputs[f.key] = input;
-      rows.push(el("label", { textContent: f.label }), input, el("div", { textContent: f.hint, style: HINT_STYLE }));
+      rows.push(el("label", { textContent: t(f.label) }), input, el("div", { textContent: t(f.hint), style: HINT_STYLE }));
     }
-    const save = button("💾 Save", async () => {
+    const save = button(t("save"), async () => {
       try {
         const vals = Object.fromEntries(Object.entries(inputs).map(([k, i]) => [k, i.value]));
         const res = await postJson("/grok_prompt_forge/library",
@@ -359,19 +434,19 @@ async function openLibrary(node, startKind = "person") {
         data = res;
         selected = res.name;
         updateLibraryLists(data, kind, renamed);
-        toast("success", "Saved", res.name);
+        toast("success", t("saved"), res.name);
         renderForm();
-      } catch (e) { toast("error", "Not saved", String(e.message ?? e)); }
+      } catch (e) { toast("error", t("notSaved"), String(e.message ?? e)); }
     }, { fontWeight: "bold" });
-    const del = button("🗑 Delete", async () => {
-      if (!selected || !(await confirmBox(`Delete "${selected}" from your library?`))) return;
+    const del = button(t("delete"), async () => {
+      if (!selected || !(await confirmBox(t("confirmDeleteEntry", selected)))) return;
       try {
         data = await postJson("/grok_prompt_forge/library/delete", { kind, name: selected });
         updateLibraryLists(data, kind, { from: selected, to: null });
-        toast("success", "Deleted", selected);
+        toast("success", t("deleted"), selected);
         selected = null;
         renderForm();
-      } catch (e) { toast("error", "Not deleted", String(e.message ?? e)); }
+      } catch (e) { toast("error", t("notDeleted"), String(e.message ?? e)); }
     });
     del.disabled = !selected;
     del.style.opacity = selected ? 1 : 0.4;
@@ -391,29 +466,28 @@ async function openLibrary(node, startKind = "person") {
           Object.keys(payload[k] || {}).filter((n) => n in lib[k]));
         let overwrite = false;
         if (clashes.length) {
-          overwrite = await confirmBox(
-            `${clashes.length} name(s) already exist in your library (${clashes.slice(0, 5).join(", ")}${clashes.length > 5 ? ", ..." : ""}). Replace them with the imported ones? Cancel keeps yours and imports only the new names.`);
+          const shown = clashes.slice(0, 5).join(", ") + (clashes.length > 5 ? ", ..." : "");
+          overwrite = await confirmBox(t("importClash", clashes.length, shown));
         }
         const res = await postJson("/grok_prompt_forge/library/import", { data: payload, overwrite });
         data = res;
         updateLibraryLists(data, null);
-        toast("success", "Imported", `${res.added} added, ${res.replaced} replaced, ${res.skipped} skipped`);
+        toast("success", t("imported"), t("importResult", res.added, res.replaced, res.skipped));
         render();
-      } catch (e) { toast("error", "Import failed", String(e.message ?? e)); }
+      } catch (e) { toast("error", t("importFailed"), String(e.message ?? e)); }
     };
-    const exportBtn = button("⬇ Export library", () => {
+    const exportBtn = button(t("exportLibrary"), () => {
       const blob = new Blob([JSON.stringify(data.library, null, 2)], { type: "application/json" });
       const a = el("a", { href: URL.createObjectURL(blob), download: "grok_prompt_forge_library.json" });
       document.body.append(a);
       a.click();
       setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
     });
-    exportBtn.title = "Download all persons and style blocks as one JSON file, e.g. to move them to another ComfyUI install.";
-    const importBtn = button("⬆ Import...", () => fileInput.click());
-    importBtn.title = "Add persons and style blocks from an exported JSON file.";
+    exportBtn.title = t("exportTitle");
+    const importBtn = button(t("importLibrary"), () => fileInput.click());
+    importBtn.title = t("importTitle");
     footer.replaceChildren(exportBtn, importBtn, fileInput,
-      el("div", { style: { ...HINT_STYLE, margin: "0 0 0 auto" },
-        textContent: "Stored in ComfyUI/user/grok_prompt_forge/library.json" }));
+      el("div", { style: { ...HINT_STYLE, margin: "0 0 0 auto" }, textContent: t("storedIn") }));
   }
 
   function render() { renderTabs(); renderForm(); renderFooter(); }
@@ -422,13 +496,10 @@ async function openLibrary(node, startKind = "person") {
 
 // ------------------------------------------------------------------ archive
 async function openArchive(node) {
-  const { body, close } = modal("Grok Prompt Forge · load from archive", "900px");
-  const search = el("input", { placeholder: "Search prompts, inputs, presets, persons...", style: INPUT_STYLE });
+  const { body, close } = modal(t("archiveTitle"), "900px");
+  const search = el("input", { placeholder: t("archiveSearch"), style: INPUT_STYLE });
   const results = el("div", { style: { display: "flex", flexDirection: "column", gap: "8px", marginTop: "10px" } });
-  body.append(search,
-    el("div", { style: HINT_STYLE, textContent:
-      "'Use as text' puts the prompt into the text field. 'Recast' also selects the preset 'Recast ▸ Swap persons' and the archived negative prompt - then choose person_1..4 and add an instruction such as 'replace the man with Person 1'." }),
-    results);
+  body.append(search, el("div", { style: HINT_STYLE, textContent: t("archiveHint") }), results);
 
   const use = async (entry, recast) => {
     if (recast) {
@@ -439,8 +510,8 @@ async function openArchive(node) {
     setValue(node, "text", entry.prompt);
     node.setDirtyCanvas?.(true, true);
     close();
-    toast("success", recast ? "Ready to recast" : "Loaded into text",
-      recast ? "Choose person_1..4 and say whom to replace in the text." : entry.preset);
+    toast("success", recast ? t("readyToRecast") : t("loadedIntoText"),
+      recast ? t("recastHint") : entry.preset);
   };
 
   let timer = null;
@@ -449,16 +520,15 @@ async function openArchive(node) {
     const data = await (await api.fetchApi(`/grok_prompt_forge/archive?limit=200&q=${q}`)).json();
     const entries = data.entries || [];
     results.replaceChildren(...(entries.length ? entries.map((e) => {
-      const meta = [e.time, e.preset, e.persons?.length ? `persons: ${e.persons.join(", ")}` : ""]
+      const meta = [e.time, e.preset, e.persons?.length ? `${t("persons")}: ${e.persons.join(", ")}` : ""]
         .filter(Boolean).join(" · ");
       return el("div", { style: { border: "1px solid var(--border-color, #555)", borderRadius: "8px", padding: "8px" } },
         el("div", { textContent: meta, style: { fontSize: "12px", opacity: 0.7, marginBottom: "4px" } }),
         el("div", { textContent: e.prompt, title: e.prompt, style: { whiteSpace: "pre-wrap",
           display: "-webkit-box", WebkitLineClamp: "3", WebkitBoxOrient: "vertical", overflow: "hidden" } }),
         el("div", { style: { display: "flex", gap: "8px", marginTop: "6px" } },
-          button("Use as text", () => use(e, false)), button("Recast", () => use(e, true))));
-    }) : [el("div", { style: HINT_STYLE, textContent: search.value
-      ? "Nothing found." : "The archive is empty. Results are archived while 'archive' is on." })]));
+          button(t("useAsText"), () => use(e, false)), button(t("recast"), () => use(e, true))));
+    }) : [el("div", { style: HINT_STYLE, textContent: search.value ? t("nothingFound") : t("archiveEmpty") })]));
   };
   search.oninput = () => { clearTimeout(timer); timer = setTimeout(load, 250); };
   await load();
@@ -484,19 +554,20 @@ app.registerExtension({
           return res;
         };
       }
-      addButton(node, "💾 Save preset as...", savePreset);
-      addButton(node, "🗑 Delete preset", deletePreset);
-      addButton(node, "🔄 Refresh model list", refreshModels);
-      addButton(node, "👤 Persons & styles...", openLibrary);
-      addButton(node, "📜 Load from archive...", openArchive);
-      showWordHint(node);
+      addLanguageSwitch(node);
+      addButton(node, "btnSavePreset", savePreset);
+      addButton(node, "btnDeletePreset", deletePreset);
+      addButton(node, "btnRefreshModels", refreshModels);
+      addButton(node, "btnLibrary", openLibrary);
+      addButton(node, "btnArchive", openArchive);
+      applyLanguage(node);
       return r;
     };
 
     const onConfigure = nodeType.prototype.onConfigure;
     nodeType.prototype.onConfigure = function () {
       const r = onConfigure?.apply(this, arguments);
-      showWordHint(this); // a loaded workflow may use another preset
+      applyLanguage(this); // also refreshes the word hint: a loaded workflow may use another preset
       return r;
     };
   },

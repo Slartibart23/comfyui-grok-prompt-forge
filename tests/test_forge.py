@@ -81,6 +81,11 @@ class BuiltinPresetTests(unittest.TestCase):
             if name.startswith(("Idea ▸", "Caption ▸ ")) and "LoRA" not in name and "Describe" not in name:
                 self.assertRegex(p["words"], r"\d", name)
 
+    def test_every_preset_has_german_texts(self):
+        for name, p in builtin_presets.BUILTIN.items():
+            self.assertTrue(p["description_de"], name)
+            self.assertEqual(bool(p["words"]), bool(p["words_de"]), name)
+
     def test_default_preset_exists(self):
         self.assertIn(builtin_presets.DEFAULT_PRESET, builtin_presets.BUILTIN)
 
@@ -268,7 +273,7 @@ class ForgeNodeTests(unittest.TestCase):
         v310 = v300 + ["min_words", "max_words"]
         self.assertEqual(order[:len(v310)], v310)
         self.assertEqual(order[len(v310):], ["person_1", "person_2", "person_3", "person_4",
-                                             "link_person_images", "style_1", "style_2",
+                                             "image_n_is_person_n", "style_1", "style_2",
                                              "archive"])
         self.assertTrue(forge_node.GrokPromptForge.VALIDATE_INPUTS(
             "unknown", "unknown", person_1="Nobody", style_2="Gone"))
@@ -348,7 +353,7 @@ class PersonRuleTests(unittest.TestCase):
         system = self.system_of(person_1="Alice", person_2="Bob", image_1=img)
         self.assertIn("Image 1 shows this person", system)
         self.assertNotIn("Image 2 shows", system)
-        system = self.system_of(person_1="Alice", image_1=img, link_person_images=False)
+        system = self.system_of(person_1="Alice", image_1=img, image_n_is_person_n=False)
         self.assertNotIn("shows this person", system)
 
     def test_name_that_is_the_trigger_is_not_repeated(self):

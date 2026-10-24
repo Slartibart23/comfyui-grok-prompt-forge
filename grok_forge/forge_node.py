@@ -161,7 +161,7 @@ IMAGE_TOOLTIP = (
     "objects, style).\n"
     "- Wan image-to-video: image_1 = start frame.\n"
     "- Every other preset: optional visual context Grok may take details from.\n"
-    "- With person_{n} set and link_person_images on: image_{n} is a photo of that "
+    "- With person_{n} set and image_n_is_person_n on: image_{n} is a photo of that "
     "person.\n"
     "Images cost extra tokens; max_side controls the upload size."
 )
@@ -226,7 +226,7 @@ class GrokPromptForge:
         for n in range(1, PERSON_SLOTS + 1):
             optional[f"person_{n}"] = (person_names, {"default": library.NONE,
                                                        "tooltip": PERSON_TOOLTIP.format(n=n)})
-        optional["link_person_images"] = ("BOOLEAN", {"default": True, "tooltip": LINK_TOOLTIP})
+        optional["image_n_is_person_n"] = ("BOOLEAN", {"default": True, "tooltip": LINK_TOOLTIP})
         style_names = library.names("style")
         for n in range(1, STYLE_SLOTS + 1):
             optional[f"style_{n}"] = (style_names, {"default": library.NONE,
@@ -305,7 +305,7 @@ class GrokPromptForge:
               image_2=None, image_3=None, trigger_word="", min_words=0, max_words=0,
               max_side=1536, api_key="",
               api_key_file=DEFAULT_KEY_FILE, base_url=DEFAULT_BASE_URL,
-              fallback_to_input=True, timeout_seconds=180, link_person_images=True,
+              fallback_to_input=True, timeout_seconds=180, image_n_is_person_n=True,
               archive=True, **slots):
         text = text or ""
         negative = negative_prompt or ""
@@ -324,7 +324,7 @@ class GrokPromptForge:
             system = custom_system_prompt
         system = system.replace("{trigger}", (trigger_word or "").strip() or NO_TRIGGER)
         rules = [BINDING_RULE,
-                 persons_rule(persons, {n for n, _ in images}, link_person_images),
+                 persons_rule(persons, {n for n, _ in images}, image_n_is_person_n),
                  styles_rule(styles),
                  length_rule(min_words, max_words)]
         system = "\n\n".join(part for part in [system.strip(), *rules] if part)

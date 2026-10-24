@@ -361,6 +361,56 @@ WORDS = {
     "MiniMax H3 REF2VA": "350-500 words for detailed_description (official H3 guide)",
 }
 
+# German texts for the node's language switch (web/grok_prompt_forge_i18n.js).
+# Only what the user reads on the node; the system prompts stay English.
+WORDS_DE = {
+    "Krea 2": "60-200 Wörter (Krea-2-Doku: lange, detaillierte Prompts wirken am besten)",
+    "Qwen-Image 2.1": "400-500 Wörter (offizieller Prompt-Umschreiber von Qwen-Image 2.1)",
+    "Qwen-Image-Edit 2.1": "30-80 Wörter (Qwen nennt keine Zahl; Edit-Anweisungen bleiben kurz)",
+    "Z-Image": "80-250 Wörter (Tongyi: lange, detaillierte Prompts; Beispiele 60-150)",
+    "FLUX": "30-80 Wörter (BFL FLUX.2: 10-30 zum Ausprobieren, 30-80 für die meisten Bilder, 80+ für komplexe Szenen)",
+    "Illustrious": "20-40 Tags (CLIP liest Abschnitte von 77 Tokens)",
+    "Pony": "40-60 Wörter/Tags (Community-Praxis; Pony nennt keine Zahl)",
+    "SDXL": "30-75 Wörter (CLIP liest Abschnitte von 77 Tokens)",
+    "Wan 2.2": "60-200 Wörter Text-zu-Video, höchstens 100 Bild-zu-Video (offizieller Wan-2.2-Prompt-Erweiterer)",
+    "Wan 2.7": "80-200 Wörter (Alibaba nennt keine Zahl)",
+    "Wan 3.0": "80-250 Wörter (Alibaba nennt keine Zahl)",
+    "MiniMax H3 FL2VA": "120-250 Wörter für integrated_multimodal_description (H3 nennt keine Zahl)",
+    "MiniMax H3 REF2VA": "350-500 Wörter für detailed_description (offizieller H3-Leitfaden)",
+}
+ABOUT_DE = {
+    "Krea 2": "Krea 2 Raw / Turbo und Fine-Tunes (natürliche Sprache, 60-200 Wörter). Der "
+              "Negativprompt wirkt nur bei CFG > 1 (Raw); Turbo ignoriert ihn.",
+    "Qwen-Image 2.1": "Qwen-Image 2.1 Text-zu-Bild (langer, beschreibender Absatz, ~400-500 "
+                      "Wörter). Läuft in den ComfyUI-Vorlagen mit CFG 1, dort wird der "
+                      "Negativprompt ignoriert.",
+    "Qwen-Image-Edit 2.1": "Qwen-Image-2.1-Bearbeitung (Edit-Anweisung, <image1>..<image3>). "
+                           "Die Eingangsbilder des Edits in derselben Reihenfolge an "
+                           "image_1..image_3 anschließen. Kein Negativprompt (CFG 1).",
+    "Z-Image": "Z-Image Turbo / Base (lange Beschreibung in natürlicher Sprache). Turbo hat "
+               "keinen Negativprompt; er wirkt nur bei Base mit CFG 3-5.",
+    "FLUX": "FLUX.2 [dev] / [klein] und FLUX.1 [dev] (natürliche Sprache, 30-80 Wörter). FLUX "
+            "unterstützt keine Negativprompts.",
+    "Illustrious": "Illustrious XL und NoobAI-artige Modelle (Danbooru-Tags, ~20-40 Tags).",
+    "Pony": "Pony Diffusion V6 XL und Pony-basierte Modelle (Score-Tags + kurze Beschreibung "
+            "+ Tags). Der Workflow braucht CLIP skip 2.",
+    "SDXL": "SDXL Base und fotorealistische Fine-Tunes wie Juggernaut XL (30-75 Wörter, "
+            "CLIP-Abschnitte von 77 Tokens).",
+    "Wan 2.2": "Wan 2.2 Text-zu-Video und Bild-zu-Video (umT5, 512 Tokens; Clips ~5 s). Für "
+               "Bild-zu-Video das Startbild an image_1 anschließen. Offizieller Negativprompt; "
+               "mit Lightning-LoRAs bei CFG 1 wird er ignoriert.",
+    "Wan 2.7": "Wan 2.7 über API-Nodes (2-15 s, eigener Ton, mehrere Einstellungen, "
+               "Referenz-zu-Video mit Image 1/2/3).",
+    "Wan 3.0": "Wan 3.0 über API-Nodes (2-30 s, Ton, mehrsprachige Stimmen). Eigene "
+               "Prompt-Regeln für 3.0 gibt es kaum; folgt dem Wan-2.7-Leitfaden.",
+    "MiniMax H3 FL2VA": "MiniMax H3 Start-/Endbild zu Video+Ton: image_1 = Startbild, image_2 "
+                        "= Endbild. Die Cliplänge in den Text schreiben (Standard 6 s). H3 "
+                        "nutzt keinen Negativprompt.",
+    "MiniMax H3 REF2VA": "MiniMax H3 Voll-Referenz Video+Ton: image_1..image_3 = "
+                         "Referenzbilder (<Picture 1..3>). Referenzvideos oder -ton im Text "
+                         "erwähnen. H3 nutzt keinen Negativprompt.",
+}
+
 
 RECAST = """You are an expert prompt editor for image and video models in ComfyUI. The user gives an existing prompt - written for any target model, in any format (natural language, tag list, multi-section video format) - and usually a short instruction such as "replace the man with Person 1". The persons to put in are defined in the "Persons" section below.
 
@@ -375,7 +425,8 @@ Recast the prompt: swap the persons, keep everything else.
 """ + COMMON
 
 
-def _preset(description, system_prompt, negative, temperature, top_p, max_tokens, words=""):
+def _preset(description, system_prompt, negative, temperature, top_p, max_tokens, words="",
+            description_de="", words_de=""):
     return {
         "description": description,
         "system_prompt": system_prompt,
@@ -384,6 +435,8 @@ def _preset(description, system_prompt, negative, temperature, top_p, max_tokens
         "top_p": top_p,
         "max_tokens": max_tokens,
         "words": words,
+        "description_de": description_de,
+        "words_de": words_de,
     }
 
 
@@ -417,32 +470,49 @@ def _build():
         "Custom system prompt": _preset(
             "Write your own system prompt (or connect custom_system_prompt). Empty = only "
             "the node's own rules are sent (the user's input is binding, optional word range).",
-            "", "", 0.7, 1.0, 8192),
+            "", "", 0.7, 1.0, 8192, "",
+            "Eigenen Systemprompt schreiben (oder custom_system_prompt anschließen). Leer = "
+            "nur die eigenen Regeln des Nodes werden gesendet (Eingabe ist verbindlich, "
+            "optionale Wortzahl)."),
         "Caption ▸ LoRA training caption": _preset(
             "Refine a raw caption (e.g. JoyCaption) into a LoRA training caption. Put the "
             "trigger token into trigger_word (or leave it empty for none).",
             LORA_CAPTION, "", 0.2, 1.0, 8192,
-            "no fixed range - keep the detail of the raw caption"),
+            "no fixed range - keep the detail of the raw caption",
+            "Eine Roh-Caption (z. B. von JoyCaption) zur LoRA-Trainings-Caption verfeinern. "
+            "Den Trigger in trigger_word eintragen (oder leer lassen für keinen).",
+            "keine feste Spanne - Detailgrad der Roh-Caption beibehalten"),
         "Caption ▸ Describe image": _preset(
             "Caption the image connected to image_1. Optional text: extra instructions or a "
             "question about the image.",
-            DESCRIBE_IMAGE, "", 0.3, 1.0, 8192),
+            DESCRIBE_IMAGE, "", 0.3, 1.0, 8192, "",
+            "Das an image_1 angeschlossene Bild beschreiben. Optionaler Text: zusätzliche "
+            "Anweisungen oder eine Frage zum Bild."),
         "Recast ▸ Swap persons": _preset(
             "Swap the persons in an existing prompt (e.g. from '📜 Load from archive...') for "
             "the persons selected in person_1..4 - action, background, style and format stay. "
             "Optional instruction in the text, e.g. 'replace the man with Person 1'.",
             RECAST, "", 0.2, 1.0, 8192,
-            "no fixed range - keeps the length of the original prompt"),
+            "no fixed range - keeps the length of the original prompt",
+            "Die Personen in einem vorhandenen Prompt (z. B. aus '📜 Aus Archiv laden...') "
+            "gegen die in person_1..4 gewählten tauschen - Handlung, Hintergrund, Stil und "
+            "Format bleiben. Optionale Anweisung im Text, z. B. 'ersetze den Mann durch "
+            "Person 1'.",
+            "keine feste Spanne - behält die Länge des Original-Prompts"),
     }
     for task, prefix in (("idea", "Idea"), ("caption", "Caption")):
         for t in TARGETS:
             temperature, top_p = t[task]
             what = ("Expand a short idea" if task == "idea"
                     else "Rewrite an existing caption faithfully")
+            what_de = ("Eine kurze Idee ausbauen" if task == "idea"
+                       else "Eine vorhandene Caption treu umschreiben")
             presets[f"{prefix} ▸ {t['label']}"] = _preset(
                 f"{what} into a prompt for {t['about']}",
                 _model_prompt(t, task), t["negative"], temperature, top_p, t["max_tokens"],
-                WORDS[t["label"]])
+                WORDS[t["label"]],
+                f"{what_de} zu einem Prompt für {ABOUT_DE[t['label']]}",
+                WORDS_DE[t["label"]])
     return presets
 
 

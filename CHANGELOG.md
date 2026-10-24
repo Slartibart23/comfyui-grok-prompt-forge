@@ -8,7 +8,7 @@
   - Every pose, action and line of dialogue is attributed to a person by name.
   - The voice is used only by models with audio (MiniMax H3, Wan 2.7, Wan 3.0).
   - Your text can refer to them by name or as "Person N".
-- **Linked reference images:** with `link_person_images` on, `image_N` shows Person N. The prompt then points at the image with the model's reference syntax (`<imageN>`, `<Picture N>`, "Image N") instead of describing the face.
+- **Linked reference images:** with `image_n_is_person_n` on, `image_N` shows Person N. The prompt then points at the image with the model's reference syntax (`<imageN>`, `<Picture N>`, "Image N") instead of describing the face.
 - **Style blocks:** `style_1` / `style_2` apply saved texts, such as a camera look, a lighting mood or a ban list, to every result.
 - **Library dialog** "👤 Persons & styles...": create, edit, rename and delete entries, and export or import them as JSON (e.g. between two ComfyUI installs).
   - Stored in `ComfyUI/user/grok_prompt_forge/library.json`, never in the node pack.
@@ -16,6 +16,10 @@
   - An edited description makes the node run again.
 - **Prompt archive:** with `archive` on (default), every result is appended to `ComfyUI/user/grok_prompt_forge/archive.jsonl` together with its input, preset, persons and settings. "📜 Load from archive..." searches the archive. "Use as text" puts the prompt back into the text field; "Recast" also selects the new preset.
 - **New preset "Recast ▸ Swap persons":** swaps the persons in an existing prompt for the selected ones and adapts pronouns and gendered details. Action, background, style, format and length stay as they are.
+- **Language switch English / Deutsch** at the top of the node. It translates field labels, tooltips, inputs and outputs, buttons, dialogs, notifications and the preset notes.
+  - Display only: it is not saved with the workflow and never re-runs the node.
+  - It is remembered in the browser and applies to all Grok Prompt Forge nodes.
+  - Preset names, system prompts and the generated prompt stay English.
 - All new fields sit at the end of the node, so saved workflows keep their values in place.
 
 ## 3.1.0 — 2026-10-24
