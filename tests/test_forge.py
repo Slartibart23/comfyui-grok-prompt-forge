@@ -5,6 +5,7 @@ ComfyUI's Python, which has numpy and Pillow:
     python -m unittest discover -s tests -v
 """
 
+import codecs
 import importlib.util
 import json
 import os
@@ -94,9 +95,10 @@ class BuiltinPresetTests(unittest.TestCase):
         self.assertIn("Caption ▸ Describe image", names)
 
     def test_everything_neutral(self):
+        # names that must never ship, rot13-encoded so they don't ship here either
         text = json.dumps(builtin_presets.BUILTIN).lower()
-        self.assertNotIn("m3l4nie", text)
-        self.assertNotIn("melanie", text)
+        for encoded in ("z3y4avr", "zrynavr"):
+            self.assertNotIn(codecs.decode(encoded, "rot13"), text)
 
     def test_output_always_english(self):
         for name, p in builtin_presets.BUILTIN.items():
