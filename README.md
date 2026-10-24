@@ -19,6 +19,7 @@ Edit instruction with reference images:
 | Node | Purpose |
 |---|---|
 | **Grok Prompt Forge (xAI)** | One node for prompt writing, caption rewriting and image captioning. It has three optional image inputs, a custom system prompt input and 30 built-in task presets. You can save your own presets under any name, pick up to four persons and two style blocks from your own library, and reload results from the prompt archive. Outputs `prompt` and `negative_prompt`. |
+| **Grok Show Prompt** | Shows a text on the node and passes it on unchanged, e.g. between Grok Prompt Forge and CLIP Text Encode. Below the text, a status line counts words, tags (comma-separated parts), sentences and characters. It can be switched off with "show counts". The counting is done locally, needs no API call, and never re-runs anything. The last text is kept with the workflow. |
 | **Grok System Prompt Loader** | Loads a system prompt from a `.txt` file and reloads it automatically when the file changes. Connect it to `custom_system_prompt`. |
 | **Grok Text File Loader (Batch)** | Loads `.txt` files from any folder one after another, in natural sort order, for batch runs. Outputs the text, the filename without extension, the full path and the file count. |
 | Grok Text Refine / Grok Vision Caption *(legacy)* | The two separate API nodes from v2. They are still registered so existing workflows keep loading and running, but they are hidden from the node search. Their tasks are now done by Grok Prompt Forge. |

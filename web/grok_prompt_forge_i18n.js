@@ -135,6 +135,15 @@ export const NODE_TEXT_DE = {
   "output:negative_prompt": { label: "Negativprompt" },
 };
 
+// German texts of the Grok Show Prompt node (separate: "text" means something else there).
+export const SHOW_TEXT_DE = {
+  text: { label: "Text", tooltip:
+    "Beliebiger Text, z. B. der Prompt-Ausgang von Grok Prompt Forge. Er wird am Node " +
+    "angezeigt und unverändert weitergegeben - das Zählen ändert ihn nie und startet nie " +
+    "einen neuen Lauf." },
+  "output:text": { label: "Text" },
+};
+
 export const STRINGS = {
   en: {
     language: "🌐 Language / Sprache",
@@ -207,6 +216,11 @@ export const STRINGS = {
     loadedIntoText: "Loaded into text",
     nothingFound: "Nothing found.",
     archiveEmpty: "The archive is empty. Results are archived while 'archive' is on.",
+    showCounts: "show counts",
+    showCountsTip: "Shows the number of words, tags (comma-separated parts), sentences and characters below the text. Display only: switching it never starts a new run.",
+    shownText: "Shown text",
+    notRunYet: "Not run yet - the text appears here after the next run.",
+    stats: (w, tg, s, c) => `${w} words · ${tg} tags · ${s} sentences · ${c} characters`,
   },
   de: {
     language: "🌐 Language / Sprache",
@@ -279,5 +293,10 @@ export const STRINGS = {
     loadedIntoText: "In die Eingabe geladen",
     nothingFound: "Nichts gefunden.",
     archiveEmpty: "Das Archiv ist leer. Ergebnisse werden archiviert, solange 'archivieren' an ist.",
+    showCounts: "Zählung anzeigen",
+    showCountsTip: "Zeigt unter dem Text die Anzahl der Wörter, Tags (durch Kommas getrennte Teile), Sätze und Zeichen. Nur Anzeige: das Umschalten startet nie einen neuen Lauf.",
+    shownText: "Angezeigter Text",
+    notRunYet: "Noch nicht gelaufen - der Text erscheint hier nach dem nächsten Lauf.",
+    stats: (w, tg, s, c) => `${w} Wörter · ${tg} Tags · ${s} Sätze · ${c} Zeichen`,
   },
 };

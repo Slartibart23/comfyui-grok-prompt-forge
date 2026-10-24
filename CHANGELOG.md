@@ -16,6 +16,10 @@
   - An edited description makes the node run again.
 - **Prompt archive:** with `archive` on (default), every result is appended to `ComfyUI/user/grok_prompt_forge/archive.jsonl` together with its input, preset, persons and settings. "📜 Load from archive..." searches the archive. "Use as text" puts the prompt back into the text field; "Recast" also selects the new preset.
 - **New preset "Recast ▸ Swap persons":** swaps the persons in an existing prompt for the selected ones and adapts pronouns and gendered details. Action, background, style, format and length stay as they are.
+- **New node: Grok Show Prompt.** It shows a text and passes it on unchanged.
+  - A status line counts words, tags, sentences and characters; switch it off with "show counts".
+  - Counting is done locally and is display only: switching or recounting never re-runs a node.
+  - The last text is kept with the workflow.
 - **Language switch English / Deutsch** at the top of the node. It translates field labels, tooltips, inputs and outputs, buttons, dialogs, notifications and the preset notes.
   - Display only: it is not saved with the workflow and never re-runs the node.
   - It is remembered in the browser and applies to all Grok Prompt Forge nodes.

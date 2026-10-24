@@ -7,15 +7,18 @@
 // - "Persons & styles..." edits your library (ComfyUI/user/grok_prompt_forge/
 //   library.json) with export / import; person_1..4 and style_1..2 follow it
 // - "Load from archive..." puts an archived prompt into the text field
-// - the language switch at the top shows the node in English or German
+// - Grok Show Prompt shows a text with its word / tag / sentence / character
+//   count (display only, never re-runs anything)
+// - the language switch at the top shows the nodes in English or German
 //   (display only, remembered in this browser; see grok_prompt_forge_i18n.js)
 
-import { LANGUAGES, NODE_TEXT_DE, STRINGS } from "./grok_prompt_forge_i18n.js";
+import { LANGUAGES, NODE_TEXT_DE, SHOW_TEXT_DE, STRINGS } from "./grok_prompt_forge_i18n.js";
 
 const { app } = window.comfyAPI.app;
 const { api } = window.comfyAPI.api;
 
 const NODE = "GrokPromptForge";
+const SHOW_NODE = "GrokShowPrompt";
 const FIELDS = ["system_prompt", "negative_prompt", "temperature", "top_p", "max_tokens"];
 const WORD_FIELDS = ["min_words", "max_words"];
 const TITLE = "Grok Prompt Forge";
@@ -46,12 +49,15 @@ function specTooltip(node, name) {
 // changes: widget names, values and the saved workflow stay the same.
 function applyLanguage(node) {
   const de = lang === "de";
+  const isShow = isType(node, SHOW_NODE);
+  const texts = isShow ? SHOW_TEXT_DE : NODE_TEXT_DE;
   for (const w of node.widgets || []) {
     if (w._grokText) {
       w.label = t(w._grokText);
+      if (w._grokTip) w.tooltip = t(w._grokTip);
       continue;
     }
-    const text = NODE_TEXT_DE[w.name];
+    const text = texts[w.name];
     if (!text) continue;
     // remember the English texts once, to switch back to them
     w._grokEn ??= { label: w.label, tooltip: w.tooltip ?? specTooltip(node, w.name),
@@ -63,13 +69,14 @@ function applyLanguage(node) {
   const slots = [...(node.inputs || []).filter((i) => !i.widget).map((i) => [i, i.name]),
                  ...(node.outputs || []).map((o) => [o, `output:${o.name}`])];
   for (const [slot, key] of slots) { // widget inputs follow their widget
-    const text = NODE_TEXT_DE[key];
+    const text = texts[key];
     if (!text) continue;
     // slot labels are saved with the workflow: only undo our own German label
     if (de) slot.label = text.label;
     else if (slot.label === text.label) slot.label = undefined;
   }
-  showWordHint(node);
+  if (isShow) renderShown(node);
+  else showWordHint(node);
   node.setDirtyCanvas?.(true, true);
 }
 
@@ -80,7 +87,7 @@ function setLanguage(value) {
   } catch {
     // private window or blocked storage: the switch still works for this page
   }
-  for (const node of forgeNodes()) {
+  for (const node of allNodes()) {
     const w = widget(node, LANG_WIDGET);
     if (w) w.value = LANGUAGES[lang];
     applyLanguage(node);
@@ -120,9 +127,19 @@ function widget(node, name) {
   return node.widgets?.find((w) => w.name === name);
 }
 
-function forgeNodes() {
+const isType = (n, type) => n.comfyClass === type || n.type === type;
+
+function graphNodes() {
   const graph = app.graph;
-  return (graph?._nodes ?? graph?.nodes ?? []).filter((n) => n.comfyClass === NODE || n.type === NODE);
+  return graph?._nodes ?? graph?.nodes ?? [];
+}
+
+function forgeNodes() {
+  return graphNodes().filter((n) => isType(n, NODE));
+}
+
+function allNodes() {
+  return graphNodes().filter((n) => isType(n, NODE) || isType(n, SHOW_NODE));
 }
 
 function toast(severity, summary, detail) {
@@ -535,10 +552,112 @@ async function openArchive(node) {
   search.focus();
 }
 
+// --------------------------------------------------------- Grok Show Prompt
+// Shows the last text with its counts. Everything here is display only: the
+// switch and the shown text live in node.properties (saved with the workflow,
+// never sent with the prompt), so nothing here ever re-runs a node.
+function countText(text) {
+  const s = String(text ?? "");
+  const words = (s.match(/\S+/g) || []).length;
+  const tags = s.split(",").filter((p) => p.trim()).length;
+  const ends = (s.match(/[^.!?。！？]*[.!?。！？]+/g) || []).filter((x) => x.trim()).length;
+  const tail = /[^.!?。！？\s]\s*$/.test(s) ? 1 : 0; // last sentence without full stop
+  return [words, tags, ends + tail, s.length];
+}
+
+function renderShown(node) {
+  const shown = widget(node, "shown_text");
+  const status = node._grokStatus;
+  if (!shown || !status) return;
+  const text = node.properties?.lastText ?? "";
+  shown.value = text;
+  if (shown.inputEl) shown.inputEl.placeholder = t("notRunYet");
+  const on = node.properties?.showCounts !== false;
+  status.style.visibility = on && text ? "visible" : "hidden";
+  status.textContent = text ? t("stats", ...countText(text)) : "";
+  const toggle = widget(node, "show_counts");
+  if (toggle) toggle.value = on;
+  node.setDirtyCanvas?.(true, true);
+}
+
+function setupShowNode(node) {
+  node.properties ??= {};
+  node.properties.showCounts ??= true;
+  addLanguageSwitch(node);
+
+  const toggle = node.addWidget("toggle", "show_counts", node.properties.showCounts, (v) => {
+    node.properties.showCounts = !!v;
+    renderShown(node);
+  }, { serialize: false });
+  toggle.serialize = false;
+  toggle._grokText = "showCounts";
+  toggle._grokTip = "showCountsTip";
+
+  const { ComfyWidgets } = window.comfyAPI.widgets;
+  const shown = ComfyWidgets.STRING(node, "shown_text", ["STRING", { multiline: true }], app).widget;
+  shown.serialize = false;
+  shown.options = { ...(shown.options || {}), serialize: false };
+  shown._grokText = "shownText";
+  if (shown.inputEl) {
+    shown.inputEl.readOnly = true;
+    shown.inputEl.style.opacity = 0.9;
+  }
+
+  // Status line drawn on the canvas like a normal widget row (a DOM element
+  // would be squeezed to nothing by the multiline text box above it).
+  const status = { textContent: "", style: { visibility: "visible" } };
+  node._grokStatus = status;
+  node.addCustomWidget({
+    name: "grok_stats", type: "grok_stats", value: "", serialize: false, options: { serialize: false },
+    computeSize: (width) => [width, 22],
+    draw(ctx, _node, width, y, height) {
+      if (status.style.visibility === "hidden" || !status.textContent) return;
+      ctx.save();
+      ctx.fillStyle = LiteGraph.WIDGET_SECONDARY_TEXT_COLOR ?? "#aaa";
+      ctx.font = "12px sans-serif";
+      ctx.textBaseline = "middle";
+      let text = status.textContent;
+      while (text.length > 4 && ctx.measureText(text).width > width - 24) text = text.slice(0, -2);
+      if (text !== status.textContent) text = text.slice(0, -1) + "…";
+      ctx.fillText(text, 14, y + (height ?? 22) / 2);
+      ctx.restore();
+    },
+  });
+
+  const min = node.computeSize();
+  node.setSize([Math.max(node.size[0], min[0], 420), Math.max(node.size[1], min[1], 260)]);
+}
+
 app.registerExtension({
   name: "GrokPromptForge.Presets",
 
   async beforeRegisterNodeDef(nodeType, nodeData) {
+    if (nodeData?.name === SHOW_NODE) {
+      const onCreated = nodeType.prototype.onNodeCreated;
+      nodeType.prototype.onNodeCreated = function () {
+        const r = onCreated?.apply(this, arguments);
+        setupShowNode(this);
+        applyLanguage(this);
+        return r;
+      };
+      const onConfigureShow = nodeType.prototype.onConfigure;
+      nodeType.prototype.onConfigure = function () {
+        const r = onConfigureShow?.apply(this, arguments);
+        applyLanguage(this); // shows the text saved with the workflow again
+        return r;
+      };
+      const onExecuted = nodeType.prototype.onExecuted;
+      nodeType.prototype.onExecuted = function (message) {
+        const r = onExecuted?.apply(this, arguments);
+        const text = message?.text;
+        if (text !== undefined) {
+          this.properties.lastText = Array.isArray(text) ? text.join("\n") : String(text);
+          renderShown(this);
+        }
+        return r;
+      };
+      return;
+    }
     if (nodeData?.name !== NODE) return;
 
     const onNodeCreated = nodeType.prototype.onNodeCreated;

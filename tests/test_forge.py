@@ -394,6 +394,16 @@ class PersonRuleTests(unittest.TestCase):
         self.assertLessEqual(p["temperature"], 0.3)
 
 
+class ShowPromptTests(unittest.TestCase):
+    def test_passes_text_through_and_shows_it(self):
+        cls = PACK_MODULE.NODE_CLASS_MAPPINGS["GrokShowPrompt"]
+        self.assertTrue(cls.OUTPUT_NODE)
+        self.assertEqual(list(cls.INPUT_TYPES()["required"]), ["text"])
+        out = cls().show("a, b. c!")
+        self.assertEqual(out, {"ui": {"text": ["a, b. c!"]}, "result": ("a, b. c!",)})
+        self.assertEqual(cls().show(None)["result"], ("",))
+
+
 class ModelListTests(unittest.TestCase):
     def test_refresh_puts_default_first_and_caches(self):
         body = {"models": [{"id": "grok-9"}, {"id": "grok-4.20-0309-reasoning"}, {"id": "grok-1"},
