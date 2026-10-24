@@ -1,5 +1,16 @@
 # comfyui-grok-prompt-forge
 
+> [!IMPORTANT]
+> **This repository has moved and is archived.** Development continues as
+> **[prompt-writer-grok-api-and-llm-gguf](https://github.com/Slartibart23/prompt-writer-grok-api-and-llm-gguf)**
+> (*Prompt Writer – Grok API & LLM GGUF*). It adds a local uncensored LLM (GGUF) besides the
+> Grok API, persons, style blocks, a prompt archive and more.
+>
+> **To switch:** delete `ComfyUI/custom_nodes/comfyui-grok-prompt-forge`, then install the new
+> pack. The main nodes keep their IDs, so your workflows load unchanged, and your presets stay
+> in `ComfyUI/user/grok_prompt_forge/`. The new pack no longer contains the legacy *Grok Text
+> Refine* and *Grok Vision Caption* nodes.
+
 ComfyUI custom node pack for the **official xAI Grok API** (OpenAI-compatible endpoint `https://api.x.ai/v1`). Its main node, **Grok Prompt Forge (xAI)**, takes a short idea or an existing caption, in any language, and writes an English prompt tuned for the target model. It can also rewrite captions for LoRA training and caption images.
 
 - **Presets per target model:** each target model has its own task preset with a matching system prompt, standard negative prompt and sampling settings.
