@@ -6,6 +6,8 @@
 
 export const LANGUAGES = { en: "English", de: "Deutsch" };
 
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+
 const IMAGE_DE = (n) =>
   `Optionales Referenzbild ${n} von 3. Grok sieht es als 'Image ${n}'. Ein einzelnes Bild ` +
   "anschließen, keinen Batch (von einem Batch wird nur das erste Bild genutzt).\n" +
@@ -220,7 +222,8 @@ export const STRINGS = {
     showCountsTip: "Shows the number of words, tags (comma-separated parts), sentences and characters below the text. Display only: switching it never starts a new run.",
     shownText: "Shown text",
     notRunYet: "Not run yet - the text appears here after the next run.",
-    stats: (w, tg, s, c) => `${w} words · ${tg} tags · ${s} sentences · ${c} characters`,
+    stats: (w, tg, s, c) => [plural(w, "word", "words"), plural(tg, "tag", "tags"),
+      plural(s, "sentence", "sentences"), plural(c, "character", "characters")].join(" · "),
   },
   de: {
     language: "🌐 Language / Sprache",
@@ -297,6 +300,7 @@ export const STRINGS = {
     showCountsTip: "Zeigt unter dem Text die Anzahl der Wörter, Tags (durch Kommas getrennte Teile), Sätze und Zeichen. Nur Anzeige: das Umschalten startet nie einen neuen Lauf.",
     shownText: "Angezeigter Text",
     notRunYet: "Noch nicht gelaufen - der Text erscheint hier nach dem nächsten Lauf.",
-    stats: (w, tg, s, c) => `${w} Wörter · ${tg} Tags · ${s} Sätze · ${c} Zeichen`,
+    stats: (w, tg, s, c) => [plural(w, "Wort", "Wörter"), plural(tg, "Tag", "Tags"),
+      plural(s, "Satz", "Sätze"), plural(c, "Zeichen", "Zeichen")].join(" · "),
   },
 };

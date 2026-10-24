@@ -1,11 +1,32 @@
 # comfyui-grok-prompt-forge
 
-ComfyUI custom node pack for the **official xAI Grok API** (OpenAI-compatible endpoint `https://api.x.ai/v1`). Its main node, **Grok Prompt Forge (xAI)**, takes a short idea or an existing caption, in any language, and writes an English prompt tuned for the target model. It can also rewrite captions for LoRA training and caption images. Each target model has its own task preset with a matching system prompt, standard negative prompt and sampling settings. Hover over any option in ComfyUI for a beginner-friendly explanation.
+ComfyUI custom node pack for the **official xAI Grok API** (OpenAI-compatible endpoint `https://api.x.ai/v1`). Its main node, **Grok Prompt Forge (xAI)**, takes a short idea or an existing caption, in any language, and writes an English prompt tuned for the target model. It can also rewrite captions for LoRA training and caption images.
+
+- **Presets per target model:** each target model has its own task preset with a matching system prompt, standard negative prompt and sampling settings.
+- **Your own persons and style blocks:** pick them from a local library and they appear in every prompt, with every action clearly assigned by name.
+- **Grok Show Prompt** displays the result with a word count.
+- **English or German:** the nodes can be shown in either language. Hover over any option for a beginner-friendly explanation.
+
+## Screenshots
+
+![Grok Prompt Forge with persons, a style block and Grok Show Prompt](docs/images/nodes_overview.png)
+
+*Grok Prompt Forge turns a German idea into a FLUX prompt featuring two persons from the library. Grok Show Prompt displays the result with its counts.*
+
+| Persons & style blocks | Prompt archive |
+|---|---|
+| ![Library dialog with a person's name, trigger, description and voice](docs/images/persons_dialog.png) | ![Archive dialog with search, "Use as text" and "Recast"](docs/images/archive_dialog.png) |
+
+![The nodes in German, with a tooltip](docs/images/german_tooltip.png)
+
+*The same nodes with the language switch set to Deutsch.*
+
+## Typical pipelines
 
 ```
 Idea -> prompt:
-[your idea, any language] -> [Grok Prompt Forge: "Idea ▸ FLUX"] -> prompt ----------> [CLIP Text Encode +]
-                                                                  -> negative_prompt -> [CLIP Text Encode -]
+[your idea, any language] -> [Grok Prompt Forge: "Idea ▸ FLUX"] -> prompt -> [Grok Show Prompt] -> [CLIP Text Encode +]
+                                                                  -> negative_prompt ------------> [CLIP Text Encode -]
 
 Caption rewriting (batch):
 [Text File Loader] -> [Grok Prompt Forge: "Caption ▸ LoRA training caption"] -> [Save Text File]
@@ -28,11 +49,12 @@ Edit instruction with reference images:
 
 ### Language
 
-The switch **🌐 Language / Sprache** at the top of the node shows the node in **English** or **Deutsch**: field labels, tooltips, inputs and outputs, buttons, dialogs, notifications and preset notes.
+The switch **🌐 Language / Sprache** at the top of Grok Prompt Forge and Grok Show Prompt shows the nodes in **English** or **Deutsch**: field labels, tooltips, inputs and outputs, buttons, dialogs, notifications and preset notes.
 
-- It only changes what you see. It is not saved in the workflow, it doesn't re-run the node, and it is remembered in your browser for all Grok Prompt Forge nodes.
+- It only changes what you see. It is not saved in the workflow and it doesn't re-run a node. Your choice is remembered in the browser and applies to all nodes of this pack.
 - Preset names stay English because they are saved in workflows.
 - The system prompts sent to Grok and the generated prompt stay English.
+- The short node description shown when you hover over a node's title stays English, because ComfyUI keeps it read-only.
 
 ### Presets
 
@@ -188,6 +210,8 @@ The `seed` is **not sent to the API**. ComfyUI only re-runs a node when one of i
 
 **Upgrading from v2:** existing workflows load unchanged, because the legacy nodes keep their IDs. For new workflows, use Grok Prompt Forge.
 
+**Upgrading within v3:** new fields are always added at the end of the node, so workflows saved with an older 3.x version keep their values in place. See [CHANGELOG.md](CHANGELOG.md) for what changed.
+
 ## API key setup
 
 Get a key at **https://console.x.ai**. The key is looked up in this order:
@@ -216,6 +240,7 @@ Offline tests need no key, network or ComfyUI. Run them from the pack folder:
 - The xAI API is a paid service billed per token. A prompt costs a fraction of a cent; images and long reasoning cost a bit more.
 - `docs/NOTE_settings_guide.txt` is a plain-text version of the sampling guide, sized to paste into a ComfyUI **Note** node.
 - If the API fails, `fallback_to_input` passes the input text through so batch runs keep going. Check the console log for the reason.
+- Your presets, persons, style blocks, archive and model cache live in `ComfyUI/user/grok_prompt_forge/`. Nothing personal is ever written into this node pack's folder.
 
 ## License
 

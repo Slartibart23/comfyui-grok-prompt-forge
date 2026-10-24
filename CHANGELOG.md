@@ -20,11 +20,12 @@
   - A status line counts words, tags, sentences and characters; switch it off with "show counts".
   - Counting is done locally and is display only: switching or recounting never re-runs a node.
   - The last text is kept with the workflow.
-- **Language switch English / Deutsch** at the top of the node. It translates field labels, tooltips, inputs and outputs, buttons, dialogs, notifications and the preset notes.
+- **Language switch English / Deutsch** at the top of both nodes. It translates field labels, tooltips (including those of the input sockets), inputs and outputs, buttons, dialogs, notifications and the preset notes.
   - Display only: it is not saved with the workflow and never re-runs the node.
   - It is remembered in the browser and applies to all Grok Prompt Forge nodes.
   - Preset names, system prompts and the generated prompt stay English.
 - All new fields sit at the end of the node, so saved workflows keep their values in place.
+- README with screenshots of the nodes and dialogs.
 
 ## 3.1.0 — 2026-10-24
 
