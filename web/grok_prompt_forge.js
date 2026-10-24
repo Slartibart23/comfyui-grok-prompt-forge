@@ -45,12 +45,46 @@ function specTooltip(node, name) {
   return (spec?.required?.[name] ?? spec?.optional?.[name])?.[1]?.tooltip;
 }
 
+// Tooltips of the input sockets are not read from the node but from ComfyUI's
+// node definition store, so they are switched there. That store is internal
+// and partly read-only: every write goes through Reflect.set, which returns
+// false instead of throwing, so a later ComfyUI version can only leave these
+// tooltips English - never break loading a workflow.
+const enTooltips = new Map(); // "type/input" -> English tooltip
+
+function applyDefinitionTexts(type, texts) {
+  try {
+    const vueApp = document.querySelector("#vue-app")?.__vue_app__;
+    const def = vueApp?.config.globalProperties.$pinia?._s.get("nodeDef")?.nodeDefsByName?.[type];
+    const de = lang === "de";
+    for (const [name, spec] of Object.entries(def?.inputs || {})) {
+      const text = texts[name];
+      if (!text?.tooltip || !spec) continue;
+      const key = `${type}/${name}`;
+      if (!enTooltips.has(key)) enTooltips.set(key, spec.tooltip);
+      Reflect.set(spec, "tooltip", de ? text.tooltip : enTooltips.get(key));
+    }
+  } catch (e) {
+    console.debug(`[${TITLE}] socket tooltips not translated:`, e);
+  }
+}
+
 // Labels and tooltips of one node in the current language. Only what is shown
-// changes: widget names, values and the saved workflow stay the same.
+// changes: widget names, values and the saved workflow stay the same. A
+// translation problem must never stop a node or workflow from loading.
 function applyLanguage(node) {
+  try {
+    translateNode(node);
+  } catch (e) {
+    console.warn(`[${TITLE}] language switch failed for this node:`, e);
+  }
+}
+
+function translateNode(node) {
   const de = lang === "de";
   const isShow = isType(node, SHOW_NODE);
   const texts = isShow ? SHOW_TEXT_DE : NODE_TEXT_DE;
+  applyDefinitionTexts(isShow ? SHOW_NODE : NODE, texts);
   for (const w of node.widgets || []) {
     if (w._grokText) {
       w.label = t(w._grokText);
