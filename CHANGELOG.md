@@ -1,0 +1,26 @@
+# Changelog
+
+## 3.0.0 — 2026-10-24
+
+- **New node: Grok Prompt Forge (xAI).** One node for prompt writing, caption rewriting and image captioning:
+  - 29 built-in task presets: "Idea ▸ …" and "Caption ▸ …" for each of Krea 2, Qwen-Image 2.1, Qwen-Image-Edit 2.1, Z-Image, FLUX, Illustrious, Pony, SDXL, Wan 2.2, Wan 2.7, Wan 3.0, MiniMax H3 FL2VA and MiniMax H3 REF2VA, plus "Caption ▸ LoRA training caption", "Caption ▸ Describe image" and "Custom system prompt".
+  - Each preset sets the system prompt, the target model's standard negative prompt, temperature, top_p and max_tokens.
+  - "Save preset as..." and "Delete preset" buttons. Your presets are stored in `ComfyUI/user/grok_prompt_forge/presets.json`.
+  - Optional `custom_system_prompt` input that always replaces the preset's system prompt.
+  - Three optional image inputs, numbered by slot, with usage notes in the tooltip.
+  - Input in any language, output always in English.
+  - Second output `negative_prompt`.
+  - Model dropdown loaded from the xAI API, with a "Refresh model list" button.
+- **Default model is now `grok-4.20-0309-reasoning`** on all API nodes. `max_tokens` defaults were raised to 8192 because the model's hidden reasoning counts against the limit. An answer that ran out of tokens is now reported clearly instead of coming back empty.
+- Grok Text Refine and Grok Vision Caption are now **legacy**. They are hidden from the node search but still load and run existing workflows, and they share the new API client. Text Refine's `fallback_to_input` now also covers HTTP errors such as 401 and 403.
+- The example system prompts are now neutral: `system_prompts/example_caption_refine.txt` replaces the subject-specific prompts.
+- Offline unit tests in `tests/`.
+
+## 2.0.1
+
+- If a model rejects a sampling parameter (e.g. `presencePenalty` on reasoning models), the parameter is stripped and the request is resent automatically.
+
+## 2.0.0
+
+- `top_p`, `presence_penalty` and `frequency_penalty` on both API nodes. Neutral values are not sent.
+- Tooltips on every widget.

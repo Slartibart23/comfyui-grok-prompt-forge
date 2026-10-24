@@ -12,8 +12,9 @@ THE OPTIONS
 ----------------------------------------------------------------
 
 model
-  Which Grok model handles the request (e.g. grok-4.5).
-  Note: some reasoning models partially ignore sampling settings.
+  Which Grok model handles the request. Default:
+  grok-4.20-0309-reasoning (accepts temperature and top_p,
+  rejects the penalties - the node retries without them).
 
 temperature  (0.0 - 2.0)
   The main creativity dial. It reshapes the probability of every
@@ -61,8 +62,9 @@ seed + control_after_generate
                   (saves money on repeated caption runs).
 
 max_tokens
-  Upper limit for the response length. 1024 is plenty for a
-  150-200 word image prompt. Too low = truncated prompts.
+  Upper limit for the response length INCLUDING the hidden
+  reasoning of reasoning models (often 1000-3500 tokens).
+  8192 is a safe default. Too low = empty or cut-off prompts.
 
 timeout_seconds / fallback_to_input
   Network safety: how long to wait, and whether to pass the

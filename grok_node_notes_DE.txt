@@ -23,8 +23,8 @@ frequency_penalty — "Das Wort wiederholst du dauernd."
   Strafe wächst mit jeder Wiederholung. Gegen Wortschleifen.
   0.0 = aus. 0.2-0.5 bei Bedarf.
 
-  ACHTUNG zu beiden Penalties: Manche Modelle (z.B. grok-4.5)
-  lehnen sie ab. Die Node entfernt den abgelehnten Parameter dann
+  ACHTUNG zu beiden Penalties: Manche Modelle (z.B. das Standard-
+  modell grok-4.20-0309-reasoning) lehnen sie ab. Die Node entfernt den abgelehnten Parameter dann
   automatisch und sendet erneut (siehe Konsole) — der Queue läuft
   weiter, aber die Regler wirken bei diesen Modellen NICHT.
   Varianz kommt dann nur aus temperature + System-Prompt.
@@ -35,8 +35,10 @@ seed + control after generate — Cache-Brecher, geht NICHT an die API.
   fixed     = identische Anfragen nutzen den Cache (spart Geld
               bei wiederholter Caption-Verfeinerung).
 
-max_tokens — Längenlimit der Antwort. 1024 reicht für 150-200
-  Wörter locker. Zu niedrig = abgeschnittene Prompts.
+max_tokens — Längenlimit der Antwort INKLUSIVE des versteckten
+  Nachdenkens von Reasoning-Modellen (oft 1000-3500 Tokens).
+  8192 ist ein sicherer Standard. Zu niedrig = leere oder
+  abgeschnittene Prompts.
 
 fallback_to_input / timeout_seconds — Bei API-Fehler Eingabetext
   unverändert durchreichen (Batch bricht nie ab) / Wartezeit
