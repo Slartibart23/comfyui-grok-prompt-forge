@@ -1,0 +1,7 @@
+.github/
+.gitignore
+.gitattributes
+.comfyignore
+tests/
+__pycache__/
+*.pyc

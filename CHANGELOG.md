@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.2.1 — 2026-10-24
+
+- The registry package no longer contains `tests/` (new `.comfyignore`).
+- The Wan 2.2 guide's list of cinematic terms is now a multi-line list instead of one very long line. Both had been reported by the registry's automatic security scan.
+- README screenshots are all in English.
+
 ## 3.2.0 — 2026-10-24
 
 - **Persons:** up to four persons per prompt (`person_1` … `person_4`) from your own library.

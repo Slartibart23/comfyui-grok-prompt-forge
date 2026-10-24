@@ -4,7 +4,7 @@ from .grok_forge.show_node import GrokShowPrompt
 from .grok_text_refine_node import NODE_CLASS_MAPPINGS as _LEGACY_CLASSES
 from .grok_text_refine_node import NODE_DISPLAY_NAME_MAPPINGS as _LEGACY_NAMES
 
-__version__ = "3.2.0"
+__version__ = "3.2.1"
 
 NODE_CLASS_MAPPINGS = {"GrokPromptForge": GrokPromptForge, "GrokShowPrompt": GrokShowPrompt,
                        **_LEGACY_CLASSES}

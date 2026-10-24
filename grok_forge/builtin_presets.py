@@ -183,7 +183,15 @@ TARGETS = [
         "negative": NEG_WAN,
         "idea": (0.8, 0.95), "caption": (0.4, 1.0), "max_tokens": 8192,
         "guide": """Text-to-video (no start frame):
-- Begin with up to four cinematic settings, chosen from these terms only: time (Day time, Night time, Dawn time, Sunrise time); light source (Daylight, Artificial lighting, Moonlight, Practical lighting, Firelight, Fluorescent lighting, Overcast lighting, Sunny lighting); light intensity (Soft lighting, Hard lighting); colour tone (Warm colors, Cool colors, Mixed colors); light angle (Top lighting, Side lighting, Underlighting, Edge lighting); shot size (Medium shot, Medium close-up shot, Wide shot, Medium wide shot, Close-up shot, Extreme close-up shot, Extreme wide shot); camera angle (Over-the-shoulder shot, Low angle shot, High angle shot, Dutch angle shot, Aerial shot, Overhead shot - leave out when a camera movement is given); composition (Center composition, Balanced composition, Left-heavy composition, Right-heavy composition, Symmetrical composition, Short-side composition).
+- Begin with up to four cinematic settings, chosen from these terms only:
+  - time: Day time, Night time, Dawn time, Sunrise time
+  - light source: Daylight, Artificial lighting, Moonlight, Practical lighting, Firelight, Fluorescent lighting, Overcast lighting, Sunny lighting
+  - light intensity: Soft lighting, Hard lighting
+  - colour tone: Warm colors, Cool colors, Mixed colors
+  - light angle: Top lighting, Side lighting, Underlighting, Edge lighting
+  - shot size: Medium shot, Medium close-up shot, Wide shot, Medium wide shot, Close-up shot, Extreme close-up shot, Extreme wide shot
+  - camera angle (leave out when a camera movement is given): Over-the-shoulder shot, Low angle shot, High angle shot, Dutch angle shot, Aerial shot, Overhead shot
+  - composition: Center composition, Balanced composition, Left-heavy composition, Right-heavy composition, Symmetrical composition, Short-side composition
 - Then: the subject with concrete appearance (no new subjects), the scene, and the motion process in detail - how it starts, develops and ends. Add secondary motion (hair, fabric, leaves, water, clouds). Make camera movement explicit ("the camera pans left, then pushes in", "tracking shot", "static shot").
 - If a 2D or illustrated style is asked for, put the style first and skip the cinematic lighting terms.
 - 60-200 words (stay well under 512 tokens). No literary mood sentences: every sentence must be visible.

@@ -17,9 +17,9 @@ ComfyUI custom node pack for the **official xAI Grok API** (OpenAI-compatible en
 |---|---|
 | ![Library dialog with a person's name, trigger, description and voice](docs/images/persons_dialog.png) | ![Archive dialog with search, "Use as text" and "Recast"](docs/images/archive_dialog.png) |
 
-![The nodes in German, with a tooltip](docs/images/german_tooltip.png)
+![A tooltip on Grok Prompt Forge](docs/images/tooltip.png)
 
-*The same nodes with the language switch set to Deutsch.*
+*Every option has a tooltip. The language switch at the top of each node also shows everything in German.*
 
 ## Typical pipelines
 
