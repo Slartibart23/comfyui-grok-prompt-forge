@@ -39,7 +39,7 @@ The preset only labels the values. The node always runs with the values shown in
 
 | Preset | What it does |
 |---|---|
-| Custom system prompt | Your own system prompt (empty = none is sent). |
+| Custom system prompt | Your own system prompt. Left empty, only the node's own rules are sent (see below). |
 | Caption ▸ LoRA training caption | Refines a raw caption (e.g. from JoyCaption) into a training caption. If you put your LoRA's trigger token into `trigger_word`, the subject's fixed traits are removed so they bind to that token. |
 | Caption ▸ Describe image | Captions `image_1`. Optional text adds extra instructions or a question about the image. |
 | Idea ▸ *target* | Expands a short idea into a full prompt for the target model. |
@@ -83,6 +83,16 @@ For Illustrious, Pony and SDXL they follow the model cards plus established comm
 | `image_1` … `image_3` | Optional single images, not batches; only the first image of a batch is used. Grok sees each one as "Image N" by its slot number, so an empty slot doesn't shift the numbering. The tooltip explains how each preset uses them. |
 | `trigger_word` | Trigger token for "Caption ▸ LoRA training caption". It replaces `{trigger}` in the system prompt. |
 | `negative_prompt` | Passed straight to the `negative_prompt` output. It is not sent to Grok. |
+| `min_words` / `max_words` | Optional length of the result, 0 = off. The tooltip shows the length recommended for the selected preset's target model. When set, the range is binding and overrides the preset's length guidance. Tag lists count each tag as one word; MiniMax H3 formats apply the range to the main description. |
+
+### Rules added to every request
+
+Two rules are appended to every system prompt, whether built-in, edited or connected via `custom_system_prompt`:
+
+- **The user's input is binding.** Every explicit wish or instruction in `text` is carried out, for example "no people", "night scene" or "write it as one sentence without score tags". If it conflicts with the preset's guidance, the input wins. Only the output format and the English-output rule stay.
+- **Length,** only if `min_words` or `max_words` is set.
+
+The console logs the word and tag count of each result whenever a range is set. Reasoning models count well but not perfectly, so expect an occasional miss of a few words.
 
 ## Model
 

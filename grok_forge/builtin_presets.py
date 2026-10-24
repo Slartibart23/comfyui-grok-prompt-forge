@@ -343,7 +343,26 @@ DESCRIBE_IMAGE = """You are an image captioner. Describe image 1 (and any furthe
 Output ONLY the caption (or the answer). No preamble, no markdown."""
 
 
-def _preset(description, system_prompt, negative, temperature, top_p, max_tokens):
+# Recommended prompt length per target, shown in the tooltip of min_words /
+# max_words. Taken from the model makers' guides where they give one.
+WORDS = {
+    "Krea 2": "60-200 words (Krea 2 docs: long, detailed prompts work best)",
+    "Qwen-Image 2.1": "400-500 words (official Qwen-Image 2.1 prompt rewriter)",
+    "Qwen-Image-Edit 2.1": "30-80 words (Qwen gives no number; edit instructions stay short)",
+    "Z-Image": "80-250 words (Tongyi: long, detailed prompts; examples 60-150)",
+    "FLUX": "30-80 words (BFL FLUX.2 guide: 10-30 to explore, 30-80 for most work, 80+ for complex scenes)",
+    "Illustrious": "20-40 tags (CLIP reads 77-token chunks)",
+    "Pony": "40-60 words/tags (community practice; Pony gives no number)",
+    "SDXL": "30-75 words (CLIP reads 77-token chunks)",
+    "Wan 2.2": "60-200 words text-to-video, at most 100 image-to-video (official Wan 2.2 prompt extender)",
+    "Wan 2.7": "80-200 words (Alibaba gives no number)",
+    "Wan 3.0": "80-250 words (Alibaba gives no number)",
+    "MiniMax H3 FL2VA": "120-250 words for integrated_multimodal_description (H3 gives no number)",
+    "MiniMax H3 REF2VA": "350-500 words for detailed_description (official H3 guide)",
+}
+
+
+def _preset(description, system_prompt, negative, temperature, top_p, max_tokens, words=""):
     return {
         "description": description,
         "system_prompt": system_prompt,
@@ -351,6 +370,7 @@ def _preset(description, system_prompt, negative, temperature, top_p, max_tokens
         "temperature": temperature,
         "top_p": top_p,
         "max_tokens": max_tokens,
+        "words": words,
     }
 
 
@@ -382,13 +402,14 @@ def _model_prompt(target, task):
 def _build():
     presets = {
         "Custom system prompt": _preset(
-            "Write your own system prompt (or connect custom_system_prompt). Empty = no "
-            "system prompt is sent.",
+            "Write your own system prompt (or connect custom_system_prompt). Empty = only "
+            "the node's own rules are sent (the user's input is binding, optional word range).",
             "", "", 0.7, 1.0, 8192),
         "Caption ▸ LoRA training caption": _preset(
             "Refine a raw caption (e.g. JoyCaption) into a LoRA training caption. Put the "
             "trigger token into trigger_word (or leave it empty for none).",
-            LORA_CAPTION, "", 0.2, 1.0, 8192),
+            LORA_CAPTION, "", 0.2, 1.0, 8192,
+            "no fixed range - keep the detail of the raw caption"),
         "Caption ▸ Describe image": _preset(
             "Caption the image connected to image_1. Optional text: extra instructions or a "
             "question about the image.",
@@ -401,7 +422,8 @@ def _build():
                     else "Rewrite an existing caption faithfully")
             presets[f"{prefix} ▸ {t['label']}"] = _preset(
                 f"{what} into a prompt for {t['about']}",
-                _model_prompt(t, task), t["negative"], temperature, top_p, t["max_tokens"])
+                _model_prompt(t, task), t["negative"], temperature, top_p, t["max_tokens"],
+                WORDS[t["label"]])
     return presets
 
 

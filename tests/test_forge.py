@@ -75,6 +75,11 @@ class BuiltinPresetTests(unittest.TestCase):
                 self.assertEqual(presets.clean(p), {k: p[k] for k in presets.FIELDS})
                 self.assertGreaterEqual(p["max_tokens"], 2048, "reasoning needs room")
 
+    def test_every_target_preset_recommends_a_length(self):
+        for name, p in builtin_presets.BUILTIN.items():
+            if name.startswith(("Idea ▸", "Caption ▸ ")) and "LoRA" not in name and "Describe" not in name:
+                self.assertRegex(p["words"], r"\d", name)
+
     def test_default_preset_exists(self):
         self.assertIn(builtin_presets.DEFAULT_PRESET, builtin_presets.BUILTIN)
 
@@ -97,6 +102,14 @@ class BuiltinPresetTests(unittest.TestCase):
         for name, p in builtin_presets.BUILTIN.items():
             if p["system_prompt"]:
                 self.assertIn("English", p["system_prompt"], name)
+
+
+class StripWrappingTests(unittest.TestCase):
+    def test_fences_quotes_and_lone_full_stop(self):
+        self.assertEqual(api.strip_wrapping("```\nhello\n```"), "hello")
+        self.assertEqual(api.strip_wrapping('"hello"'), "hello")
+        self.assertEqual(api.strip_wrapping("1girl, solo, garden\n."), "1girl, solo, garden")
+        self.assertEqual(api.strip_wrapping("A cat.\n\nA dog."), "A cat.\n\nA dog.")
 
 
 class PresetStoreTests(unittest.TestCase):
@@ -162,12 +175,30 @@ class ForgeNodeTests(unittest.TestCase):
         self.assertEqual(payload["model"], "grok-4.20-0309-reasoning")
         self.assertEqual(payload["top_p"], 0.95)
         self.assertNotIn("presence_penalty", payload)
-        self.assertEqual(payload["messages"][0]["content"], "SYS (none)")
+        system = payload["messages"][0]["content"]
+        self.assertTrue(system.startswith("SYS (none)\n\n## The user's input is binding"))
+        self.assertNotIn("## Length", system)
         self.assertEqual(payload["messages"][1]["content"], "eine Katze im Regen")
 
     def test_custom_system_prompt_wins_and_trigger(self):
         _, post = self.run_node(custom_system_prompt="CUSTOM {trigger}", trigger_word="ohwx")
-        self.assertEqual(post.call_args.kwargs["json"]["messages"][0]["content"], "CUSTOM ohwx")
+        system = post.call_args.kwargs["json"]["messages"][0]["content"]
+        self.assertTrue(system.startswith("CUSTOM ohwx\n\n"))
+        self.assertIn(forge_node.BINDING_RULE, system)
+
+    def test_empty_system_prompt_still_gets_rules(self):
+        _, post = self.run_node(system_prompt="", min_words=10, max_words=20)
+        system = post.call_args.kwargs["json"]["messages"][0]["content"]
+        self.assertTrue(system.startswith("## The user's input is binding"))
+        self.assertIn("between 10 and 20 words", system)
+
+    def test_length_rule_variants(self):
+        rule = forge_node.length_rule
+        self.assertEqual(rule(0, 0), "")
+        self.assertIn("between 30 and 80 words", rule(80, 30))  # swapped
+        self.assertIn("at least 50 words", rule(50, 0))
+        self.assertIn("at most 120 words", rule(0, 120))
+        self.assertIn("overrides any length given above", rule(1, 2))
 
     def test_empty_custom_prompt_is_ignored(self):
         _, post = self.run_node(custom_system_prompt="   ")
@@ -223,6 +254,15 @@ class ForgeNodeTests(unittest.TestCase):
         self.assertEqual(spec["required"]["model"][0][0], "grok-4.20-0309-reasoning")
         for n in (1, 2, 3):
             self.assertEqual(spec["optional"][f"image_{n}"][0], "IMAGE")
+        for f in ("min_words", "max_words"):
+            self.assertEqual(spec["optional"][f][1]["default"], 0)
+        # widget order of 3.0.x must stay a prefix, or saved workflows shift
+        v300 = ["preset", "text", "system_prompt", "negative_prompt", "model", "temperature",
+                "top_p", "max_tokens", "seed", "custom_system_prompt", "image_1", "image_2",
+                "image_3", "trigger_word", "max_side", "api_key", "api_key_file", "base_url",
+                "fallback_to_input", "timeout_seconds"]
+        order = list(spec["required"]) + list(spec["optional"])
+        self.assertEqual(order[:len(v300)], v300)
         self.assertTrue(forge_node.GrokPromptForge.VALIDATE_INPUTS("unknown", "unknown"))
 
 

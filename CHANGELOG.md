@@ -1,5 +1,16 @@
 # Changelog
 
+## 3.1.0 — 2026-10-24
+
+- **Optional word range:** new fields `min_words` / `max_words` (0 = off) on Grok Prompt Forge.
+  - When set, a binding length rule is appended to every system prompt, including your own, and overrides the preset's length guidance.
+  - Tag lists count each tag as one word. In MiniMax H3 formats the range applies to the main description.
+  - The tooltip and the preset note show the length the target model's maker recommends for the selected preset.
+  - The console logs the word count of each result.
+- **The user's input is binding:** a rule appended to every system prompt makes every explicit wish in the input win over the preset's guidance. Only the output format and the English-output rule stay.
+- The new fields sit at the end of the node, so workflows saved with 3.0.x load with their values in the right place.
+- A lone full stop on the last line of a result (seen after tag lists) is removed.
+
 ## 3.0.1 — 2026-10-24
 
 - Multi-agent models (e.g. `grok-4.20-multi-agent-0309`) are no longer listed in the model dropdown. The xAI API rejects them on chat completions, which these nodes use.

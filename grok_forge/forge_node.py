@@ -12,6 +12,38 @@ LOG = "[Grok Prompt Forge]"
 NO_TRIGGER = "(none)"
 IMAGE_SLOTS = 3
 
+# Appended to every system prompt (built-in, edited or custom).
+BINDING_RULE = """## The user's input is binding
+Every explicit wish or instruction in the user's input must be carried out in the result - subjects, details, actions, style, wording, text to render, things to leave out, counts. If it conflicts with the guidance above, the user's input wins. Only the output format and the English-output rule stay as described above."""
+
+WORDS_TOOLTIP = (
+    "Optional length of the generated prompt in words: min_words / max_words. "
+    "0 = off (the preset's own length guidance applies). When set, the range is "
+    "binding for every preset, including your own system prompts. Tag lists count "
+    "each tag as one word; multi-section formats (MiniMax H3) apply it to the main "
+    "description.")
+
+
+def length_rule(min_words, max_words):
+    """System-prompt block for the optional word range ('' when both are 0)."""
+    lo, hi = max(int(min_words or 0), 0), max(int(max_words or 0), 0)
+    if lo and hi and lo > hi:
+        lo, hi = hi, lo
+    if lo and hi:
+        target = f"between {lo} and {hi} words"
+    elif lo:
+        target = f"at least {lo} words"
+    elif hi:
+        target = f"at most {hi} words"
+    else:
+        return ""
+    return (f"## Length (binding)\nThe result must have {target}. This overrides any "
+            "length given above. Count only the words of the result itself; in tag lists "
+            "each comma-separated tag counts as one word; in formats with several sections "
+            "the range applies to the main description section (e.g. "
+            "integrated_multimodal_description or detailed_description) and the other "
+            "sections stay as described. Check the count before answering and adjust.")
+
 IMAGE_TOOLTIP = (
     "Optional reference image {n} of 3. Grok sees it as 'Image {n}'. Connect a "
     "single image, not a batch (only the first image of a batch is used).\n"
@@ -75,6 +107,12 @@ class GrokPromptForge:
             "timeout_seconds": ("INT", {"default": 180, "min": 10, "max": 900, "tooltip":
                 "How long to wait for the API before retrying (3 attempts total). "
                 "Reasoning models think before answering - keep this generous."}),
+            # Added in 3.1.0. New widgets go last: saved workflows map widget
+            # values by position, so inserting them earlier shifts old values.
+            "min_words": ("INT", {"default": 0, "min": 0, "max": 2000, "step": 5,
+                                  "tooltip": WORDS_TOOLTIP}),
+            "max_words": ("INT", {"default": 0, "min": 0, "max": 2000, "step": 5,
+                                  "tooltip": WORDS_TOOLTIP}),
         })
         return {
             "required": {
@@ -139,7 +177,8 @@ class GrokPromptForge:
 
     def forge(self, preset, text, system_prompt, negative_prompt, model, temperature,
               top_p, max_tokens, seed=0, custom_system_prompt=None, image_1=None,
-              image_2=None, image_3=None, trigger_word="", max_side=1536, api_key="",
+              image_2=None, image_3=None, trigger_word="", min_words=0, max_words=0,
+              max_side=1536, api_key="",
               api_key_file=DEFAULT_KEY_FILE, base_url=DEFAULT_BASE_URL,
               fallback_to_input=True, timeout_seconds=180):
         text = text or ""
@@ -156,10 +195,12 @@ class GrokPromptForge:
         if custom_system_prompt and custom_system_prompt.strip():
             system = custom_system_prompt
         system = system.replace("{trigger}", (trigger_word or "").strip() or NO_TRIGGER)
+        rules = [BINDING_RULE, length_rule(min_words, max_words)]
+        system = "\n\n".join(part for part in [system.strip(), *rules] if part)
 
         try:
             key = resolve_api_key(api_key, api_key_file, log=LOG)
-            messages = [{"role": "system", "content": system}] if system.strip() else []
+            messages = [{"role": "system", "content": system}]
             messages.append({"role": "user",
                              "content": self._user_content(text, images, max_side)})
             payload = {
@@ -170,6 +211,10 @@ class GrokPromptForge:
             }
             apply_sampling_params(payload, top_p, None, None)
             result = chat(payload, key, base_url, timeout_seconds, log=LOG)
+            if min_words or max_words:
+                parts = len([p for p in result.split(",") if p.strip()])
+                print(f"{LOG} result: {len(result.split())} words / {parts} comma-separated "
+                      f"parts (range {min_words or '-'} to {max_words or '-'}).")
         except Exception as e:
             if fallback_to_input:
                 print(f"{e} - falling back to input text.")

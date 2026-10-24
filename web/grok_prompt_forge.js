@@ -10,6 +10,7 @@ const { api } = window.comfyAPI.api;
 
 const NODE = "GrokPromptForge";
 const FIELDS = ["system_prompt", "negative_prompt", "temperature", "top_p", "max_tokens"];
+const WORD_FIELDS = ["min_words", "max_words"];
 const TITLE = "Grok Prompt Forge";
 const CUSTOM = "Custom system prompt"; // built-in preset name, see builtin_presets.py
 
@@ -65,12 +66,33 @@ function setValue(node, name, value) {
   w.callback?.(value);
 }
 
+// min_words / max_words: the tooltip names the length the selected preset's
+// target model recommends.
+async function showWordHint(node) {
+  const name = widget(node, "preset")?.value;
+  const preset = (await loadPresets()).find((p) => p.name === name);
+  const hint = preset?.words
+    ? `Recommended for "${name}": ${preset.words}.`
+    : "This preset has no recommended length.";
+  for (const f of WORD_FIELDS) {
+    const w = widget(node, f);
+    if (!w) continue;
+    // the general explanation is in the node definition, not on the widget
+    w._grokBaseTooltip ??= node.constructor.nodeData?.input?.optional?.[f]?.[1]?.tooltip ?? "";
+    w.tooltip = `${hint}\n\n${w._grokBaseTooltip}`;
+  }
+}
+
 async function applyPreset(node, name, announce = false) {
   const preset = (await loadPresets()).find((p) => p.name === name);
   if (!preset) return;
   for (const f of FIELDS) setValue(node, f, preset[f]);
+  await showWordHint(node);
   node.setDirtyCanvas?.(true, true);
-  if (announce && preset.description) toast("info", name, preset.description);
+  if (announce && preset.description) {
+    const words = preset.words ? `\nLength: ${preset.words}.` : "";
+    toast("info", name, preset.description + words);
+  }
 }
 
 // Show the new preset list on every Grok Prompt Forge node; each keeps its value.
@@ -185,6 +207,14 @@ app.registerExtension({
       addButton(node, "💾 Save preset as...", savePreset);
       addButton(node, "🗑 Delete preset", deletePreset);
       addButton(node, "🔄 Refresh model list", refreshModels);
+      showWordHint(node);
+      return r;
+    };
+
+    const onConfigure = nodeType.prototype.onConfigure;
+    nodeType.prototype.onConfigure = function () {
+      const r = onConfigure?.apply(this, arguments);
+      showWordHint(this); // a loaded workflow may use another preset
       return r;
     };
   },

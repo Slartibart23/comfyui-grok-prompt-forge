@@ -90,6 +90,8 @@ def strip_wrapping(text: str) -> str:
         t = "\n".join(lines).strip()
     if len(t) >= 2 and t[0] == t[-1] and t[0] in ('"', "'"):
         t = t[1:-1].strip()
+    # a lone full stop on its own last line (seen after tag lists)
+    t = re.sub(r"\n\s*\.\s*$", "", t)
     return t
 
 
