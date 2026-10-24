@@ -3,7 +3,7 @@ from .grok_forge.forge_node import GrokPromptForge
 from .grok_text_refine_node import NODE_CLASS_MAPPINGS as _LEGACY_CLASSES
 from .grok_text_refine_node import NODE_DISPLAY_NAME_MAPPINGS as _LEGACY_NAMES
 
-__version__ = "3.1.0"
+__version__ = "3.2.0"
 
 NODE_CLASS_MAPPINGS = {"GrokPromptForge": GrokPromptForge, **_LEGACY_CLASSES}
 NODE_DISPLAY_NAME_MAPPINGS = {"GrokPromptForge": "Grok Prompt Forge (xAI)", **_LEGACY_NAMES}

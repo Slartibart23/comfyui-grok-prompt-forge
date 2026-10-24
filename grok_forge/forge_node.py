@@ -3,7 +3,10 @@ image captioning. A task preset fills the system prompt, the standard negative
 prompt and the sampling settings; everything stays editable on the node and can
 be saved as a preset of your own (see web/grok_prompt_forge.js)."""
 
-from . import models, presets
+import json
+
+from . import archive as prompt_archive
+from . import library, models, presets
 from .api import (DEFAULT_BASE_URL, DEFAULT_KEY_FILE, DEFAULT_MODEL, apply_sampling_params,
                   chat, image_to_data_uri, resolve_api_key)
 from .builtin_presets import BUILTIN, DEFAULT_PRESET
@@ -11,6 +14,29 @@ from .builtin_presets import BUILTIN, DEFAULT_PRESET
 LOG = "[Grok Prompt Forge]"
 NO_TRIGGER = "(none)"
 IMAGE_SLOTS = 3
+PERSON_SLOTS = 4
+STYLE_SLOTS = 2
+
+PERSON_TOOLTIP = (
+    "Person {n} from your library (button '👤 Persons & styles...'): name, LoRA "
+    "trigger, description and voice are put into the prompt and are binding. In "
+    "your text, refer to the person by name or as 'Person {n}'. (none) = no person.")
+LINK_TOOLTIP = (
+    "On: image_N shows Person N (person_4 has no image slot). The prompt then "
+    "points at the reference image instead of describing the face in words. Most "
+    "useful for Qwen-Image-Edit (<imageN>), MiniMax H3 REF2VA (<Picture N>), "
+    "Wan 2.7 / 3.0 reference-to-video ('Image N') and FLUX.2 multi-reference. For "
+    "other models the image only serves as the look to describe. Turn it off when "
+    "the images mean something else (e.g. H3 FL2VA first and last frame).")
+STYLE_TOOLTIP = (
+    "Style block {n} from your library (button '👤 Persons & styles...'): a saved "
+    "text such as a camera look, a lighting mood or a ban list. It is applied to "
+    "every result and is binding. (none) = off.")
+ARCHIVE_TOOLTIP = (
+    "On: every result is appended with its input, preset, persons and settings to "
+    "ComfyUI/user/grok_prompt_forge/archive.jsonl. '📜 Load from archive...' puts "
+    "an archived prompt back into the text field, e.g. to recast it with another "
+    "person ('Recast ▸ Swap persons').")
 
 # Appended to every system prompt (built-in, edited or custom).
 BINDING_RULE = """## The user's input is binding
@@ -44,6 +70,70 @@ def length_rule(min_words, max_words):
             "integrated_multimodal_description or detailed_description) and the other "
             "sections stay as described. Check the count before answering and adjust.")
 
+
+def persons_rule(persons, image_slots, link_images):
+    """System-prompt block for the selected persons.
+
+    persons: [(slot, name, entry)]; image_slots: numbers of connected image inputs."""
+    if not persons:
+        return ""
+    lines = ["## Persons (binding)",
+             "These persons must appear in the result exactly as defined below - even if "
+             "the user's input does not mention them. The input may refer to them by "
+             "name or as \"Person N\". The names are labels only: never write a name into "
+             "the result unless it is the person's trigger."]
+    for slot, name, entry in persons:
+        lines.append(f"\nPerson {slot} (\"{name}\"):")
+        if entry["trigger"]:
+            lines.append(f"- Trigger: {entry['trigger']} - write it exactly like this as the "
+                         "person's name in the result (in tag lists: first among this "
+                         "person's tags).")
+        else:
+            lines.append("- No trigger: introduce the person through the description.")
+        if entry["description"]:
+            lines.append(f"- Description (binding; in tag lists as tags): {entry['description']}")
+        if entry["voice"]:
+            lines.append(f"- Voice: {entry['voice']} - use it as this person's voice "
+                         "description only if the target model generates audio (MiniMax "
+                         "H3, Wan 2.7, Wan 3.0); otherwise ignore it.")
+        if link_images and slot in image_slots:
+            lines.append(f"- Image {slot} shows this person. Refer to the image with the "
+                         "target model's reference syntax (e.g. <image{n}>, <Picture {n}>, "
+                         "\"Image {n}\") instead of describing the face in words; where the "
+                         "model has no reference syntax, take the look from the image."
+                         .format(n=slot))
+    return "\n".join(lines)
+
+
+def styles_rule(styles):
+    """System-prompt block for the selected style blocks: [(name, entry)]."""
+    if not styles:
+        return ""
+    lines = ["## Style blocks (binding)",
+             "Apply every block below to the result, in the target model's prompt style:"]
+    lines += [f"- {entry['text']}" for _, entry in styles if entry["text"]]
+    return "\n".join(lines) if len(lines) > 2 else ""
+
+
+def _selected(kwargs):
+    """Look up the selected persons and styles in the library."""
+    persons, styles = [], []
+    for n in range(1, PERSON_SLOTS + 1):
+        name = kwargs.get(f"person_{n}") or library.NONE
+        entry = library.get("person", name)
+        if entry is not None:
+            persons.append((n, name, entry))
+        elif name != library.NONE:
+            print(f"{LOG} person_{n}: '{name}' is not in your library - skipped.")
+    for n in range(1, STYLE_SLOTS + 1):
+        name = kwargs.get(f"style_{n}") or library.NONE
+        entry = library.get("style", name)
+        if entry is not None:
+            styles.append((name, entry))
+        elif name != library.NONE:
+            print(f"{LOG} style_{n}: '{name}' is not in your library - skipped.")
+    return persons, styles
+
 IMAGE_TOOLTIP = (
     "Optional reference image {n} of 3. Grok sees it as 'Image {n}'. Connect a "
     "single image, not a batch (only the first image of a batch is used).\n"
@@ -56,6 +146,7 @@ IMAGE_TOOLTIP = (
     "objects, style).\n"
     "- Wan image-to-video: image_1 = start frame.\n"
     "- Every other preset: optional visual context Grok may take details from.\n"
+    "- With person_{n} set and link_person_images on: image_{n} shows that person.\n"
     "Images cost extra tokens; max_side controls the upload size."
 )
 
@@ -114,6 +205,17 @@ class GrokPromptForge:
             "max_words": ("INT", {"default": 0, "min": 0, "max": 2000, "step": 5,
                                   "tooltip": WORDS_TOOLTIP}),
         })
+        # Added in 3.2.0, again at the end.
+        person_names = library.names("person")
+        for n in range(1, PERSON_SLOTS + 1):
+            optional[f"person_{n}"] = (person_names, {"default": library.NONE,
+                                                       "tooltip": PERSON_TOOLTIP.format(n=n)})
+        optional["link_person_images"] = ("BOOLEAN", {"default": True, "tooltip": LINK_TOOLTIP})
+        style_names = library.names("style")
+        for n in range(1, STYLE_SLOTS + 1):
+            optional[f"style_{n}"] = (style_names, {"default": library.NONE,
+                                                     "tooltip": STYLE_TOOLTIP.format(n=n)})
+        optional["archive"] = ("BOOLEAN", {"default": True, "tooltip": ARCHIVE_TOOLTIP})
         return {
             "required": {
                 "preset": (presets.names(), {"default": DEFAULT_PRESET, "tooltip":
@@ -169,33 +271,46 @@ class GrokPromptForge:
         }
 
     @classmethod
-    def VALIDATE_INPUTS(cls, preset, model):
-        # The preset only labels the values on the node and the model list is
-        # live from the API: a workflow from another machine (other presets,
-        # older model list) must still run.
+    def VALIDATE_INPUTS(cls, preset, model, person_1=None, person_2=None, person_3=None,
+                        person_4=None, style_1=None, style_2=None):
+        # The preset only labels the values on the node, the model list is live
+        # from the API and persons/styles live in your own library: a workflow
+        # from another machine must still run (unknown persons are skipped).
         return True
+
+    @classmethod
+    def IS_CHANGED(cls, **kwargs):
+        # Same person or style name but an edited description must run again.
+        persons, styles = _selected(kwargs)
+        return json.dumps([persons, styles], sort_keys=True)
 
     def forge(self, preset, text, system_prompt, negative_prompt, model, temperature,
               top_p, max_tokens, seed=0, custom_system_prompt=None, image_1=None,
               image_2=None, image_3=None, trigger_word="", min_words=0, max_words=0,
               max_side=1536, api_key="",
               api_key_file=DEFAULT_KEY_FILE, base_url=DEFAULT_BASE_URL,
-              fallback_to_input=True, timeout_seconds=180):
+              fallback_to_input=True, timeout_seconds=180, link_person_images=True,
+              archive=True, **slots):
         text = text or ""
         negative = negative_prompt or ""
         # (slot number, image): an unconnected slot keeps the numbering of the others
         images = [(n, img) for n, img in enumerate((image_1, image_2, image_3), 1)
                   if img is not None]
 
-        if not text.strip() and not images:
-            print(f"{LOG} Empty input text and no image - nothing to do.")
+        persons, styles = _selected(slots)
+
+        if not text.strip() and not images and not persons:
+            print(f"{LOG} Empty input text, no image and no person - nothing to do.")
             return ("", negative)
 
         system = system_prompt
         if custom_system_prompt and custom_system_prompt.strip():
             system = custom_system_prompt
         system = system.replace("{trigger}", (trigger_word or "").strip() or NO_TRIGGER)
-        rules = [BINDING_RULE, length_rule(min_words, max_words)]
+        rules = [BINDING_RULE,
+                 persons_rule(persons, {n for n, _ in images}, link_person_images),
+                 styles_rule(styles),
+                 length_rule(min_words, max_words)]
         system = "\n\n".join(part for part in [system.strip(), *rules] if part)
 
         try:
@@ -220,12 +335,24 @@ class GrokPromptForge:
                 print(f"{e} - falling back to input text.")
                 return (text, negative)
             raise
+        if archive:
+            try:
+                prompt_archive.append({
+                    "preset": preset, "model": payload["model"], "text": text,
+                    "persons": [name for _, name, _ in persons],
+                    "styles": [name for name, _ in styles],
+                    "images": [n for n, _ in images], "prompt": result,
+                    "negative_prompt": negative, "temperature": float(temperature),
+                    "top_p": float(top_p), "min_words": int(min_words or 0),
+                    "max_words": int(max_words or 0)})
+            except OSError as e:
+                print(f"{LOG} could not write the archive: {e}")
         return (result, negative)
 
     @staticmethod
     def _user_content(text, images, max_side):
         if not images:
-            return text
+            return text.strip() or "(no text - write the result around the selected persons)"
         for n, img in images:
             if getattr(img, "shape", None) is not None and len(img.shape) == 4 and img.shape[0] > 1:
                 print(f"{LOG} image_{n} carries a batch of {img.shape[0]} - "
@@ -237,5 +364,5 @@ class GrokPromptForge:
             content.append({"type": "image_url", "image_url": {
                 "url": image_to_data_uri(img, 0, max_side), "detail": "high"}})
         content.append({"type": "text", "text": "User input:\n" + (
-            text.strip() or "(no text - work from the images alone)")})
+            text.strip() or "(no text - work from the images and the selected persons)")})
         return content

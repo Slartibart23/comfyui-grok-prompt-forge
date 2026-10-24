@@ -42,7 +42,7 @@ def _load_pack():
 
 _install_stubs()
 PACK_MODULE = _load_pack()
-from grokpack.grok_forge import api, builtin_presets, forge_node, models, presets  # noqa: E402
+from grokpack.grok_forge import api, archive, builtin_presets, forge_node, library, models, presets  # noqa: E402
 
 
 def tearDownModule():
@@ -263,7 +263,120 @@ class ForgeNodeTests(unittest.TestCase):
                 "fallback_to_input", "timeout_seconds"]
         order = list(spec["required"]) + list(spec["optional"])
         self.assertEqual(order[:len(v300)], v300)
-        self.assertTrue(forge_node.GrokPromptForge.VALIDATE_INPUTS("unknown", "unknown"))
+        v310 = v300 + ["min_words", "max_words"]
+        self.assertEqual(order[:len(v310)], v310)
+        self.assertEqual(order[len(v310):], ["person_1", "person_2", "person_3", "person_4",
+                                             "link_person_images", "style_1", "style_2",
+                                             "archive"])
+        self.assertTrue(forge_node.GrokPromptForge.VALIDATE_INPUTS(
+            "unknown", "unknown", person_1="Nobody", style_2="Gone"))
+
+
+def _reset_user_files():
+    for name in ("library.json", "archive.jsonl"):
+        path = os.path.join(api.user_dir(), name)
+        if os.path.exists(path):
+            os.remove(path)
+
+
+class LibraryTests(unittest.TestCase):
+    def setUp(self):
+        _reset_user_files()
+
+    def test_save_rename_delete(self):
+        library.save("person", " Alice ", {"trigger": "ohwx woman", "description": "red hair",
+                                           "voice": "", "bogus": "x"})
+        self.assertEqual(library.names("person"), [library.NONE, "Alice"])
+        self.assertEqual(library.get("person", "Alice"),
+                         {"trigger": "ohwx woman", "description": "red hair", "voice": ""})
+        library.save("person", "Alice B.", {"trigger": "ohwx"}, old_name="Alice")
+        self.assertEqual(library.names("person"), [library.NONE, "Alice B."])
+        self.assertTrue(library.delete("person", "Alice B."))
+        self.assertFalse(library.delete("person", "Alice B."))
+        self.assertIsNone(library.get("person", library.NONE))
+
+    def test_reserved_and_empty_names(self):
+        for bad in ("", "  ", library.NONE):
+            with self.assertRaises(ValueError):
+                library.save("style", bad, {"text": "x"})
+
+    def test_import_keeps_or_replaces(self):
+        library.save("style", "Film", {"text": "mine"})
+        payload = {"styles": {"Film": {"text": "theirs"}, "Noir": {"text": "dark"}},
+                   "persons": {"Bob": {"trigger": "sks man"}, "": {"trigger": "x"}}}
+        self.assertEqual(library.import_entries(payload), (2, 0, 2))
+        self.assertEqual(library.get("style", "Film")["text"], "mine")
+        self.assertEqual(library.import_entries(payload, overwrite=True), (0, 3, 1))
+        self.assertEqual(library.get("style", "Film")["text"], "theirs")
+        with self.assertRaises(ValueError):
+            library.import_entries(["not", "a", "dict"])
+
+
+class PersonRuleTests(unittest.TestCase):
+    def setUp(self):
+        _reset_user_files()
+        library.save("person", "Alice", {"trigger": "ohwx woman", "description": "short red hair",
+                                         "voice": "warm alto"})
+        library.save("person", "Bob", {"trigger": "", "description": "grey beard"})
+        library.save("style", "Film", {"text": "shot on 35mm film, grain"})
+        self.node = forge_node.GrokPromptForge()
+        self.base = dict(preset=builtin_presets.DEFAULT_PRESET, text="beide im Café",
+                         system_prompt="SYS", negative_prompt="", model=api.DEFAULT_MODEL,
+                         temperature=0.8, top_p=0.95, max_tokens=8192, api_key="k")
+
+    def system_of(self, **kw):
+        with mock.patch("requests.post", return_value=ok("result")) as post:
+            self.node.forge(**dict(self.base, **kw))
+        return post.call_args.kwargs["json"]["messages"][0]["content"]
+
+    def test_persons_and_styles_are_appended(self):
+        system = self.system_of(person_1="Alice", person_3="Bob", style_2="Film")
+        self.assertIn("## Persons (binding)", system)
+        self.assertIn('Person 1 ("Alice")', system)
+        self.assertIn("Trigger: ohwx woman", system)
+        self.assertIn("Voice: warm alto", system)
+        self.assertIn('Person 3 ("Bob")', system)
+        self.assertIn("No trigger", system)
+        self.assertIn("- shot on 35mm film, grain", system)
+        self.assertLess(system.index("## Persons"), system.index("## Style blocks"))
+
+    def test_image_link_follows_slots_and_switch(self):
+        img = np.zeros((1, 8, 8, 3), dtype=np.float32)
+        system = self.system_of(person_1="Alice", person_2="Bob", image_1=img)
+        self.assertIn("Image 1 shows this person", system)
+        self.assertNotIn("Image 2 shows", system)
+        system = self.system_of(person_1="Alice", image_1=img, link_person_images=False)
+        self.assertNotIn("shows this person", system)
+
+    def test_unknown_person_is_skipped(self):
+        system = self.system_of(person_1="Nobody")
+        self.assertNotIn("## Persons", system)
+
+    def test_persons_alone_are_enough_input(self):
+        with mock.patch("requests.post", return_value=ok("result")) as post:
+            out = self.node.forge(**dict(self.base, text="", person_1="Alice"))
+        self.assertEqual(out[0], "result")
+        self.assertIn("selected persons", post.call_args.kwargs["json"]["messages"][1]["content"])
+
+    def test_is_changed_follows_edited_description(self):
+        before = forge_node.GrokPromptForge.IS_CHANGED(person_1="Alice")
+        library.save("person", "Alice", {"trigger": "ohwx woman", "description": "long hair"})
+        self.assertNotEqual(before, forge_node.GrokPromptForge.IS_CHANGED(person_1="Alice"))
+
+    def test_archive_written_and_searchable(self):
+        self.system_of(person_1="Alice", text="Alice am Strand")
+        self.system_of(archive=False, text="nicht archivieren")
+        entries = archive.entries()
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0]["persons"], ["Alice"])
+        self.assertEqual(entries[0]["prompt"], "result")
+        self.assertEqual(len(archive.entries(query="STRAND")), 1)
+        self.assertEqual(archive.entries(query="mond"), [])
+
+    def test_recast_preset(self):
+        p = builtin_presets.BUILTIN["Recast ▸ Swap persons"]
+        self.assertIn("Persons", p["system_prompt"])
+        self.assertLessEqual(p["temperature"], 0.3)
 
 
 class ModelListTests(unittest.TestCase):

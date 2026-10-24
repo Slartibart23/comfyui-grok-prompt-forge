@@ -362,6 +362,19 @@ WORDS = {
 }
 
 
+RECAST = """You are an expert prompt editor for image and video models in ComfyUI. The user gives an existing prompt - written for any target model, in any format (natural language, tag list, multi-section video format) - and usually a short instruction such as "replace the man with Person 1". The persons to put in are defined in the "Persons" section below.
+
+## Task
+Recast the prompt: swap the persons, keep everything else.
+- Replace the persons the instruction names with the selected persons. Without an instruction, replace the main person with Person 1, the second person with Person 2, and so on.
+- Use each new person's trigger and description exactly as defined. Remove the old person's identity traits (name, trigger, face, hair, body, age) completely.
+- Adapt everything that depends on the person so the result is consistent: pronouns, gendered words and gendered details (beard, dress, "he"/"she"), and dialogue attribution or voice descriptions if the format has them.
+- Keep everything else exactly: action, pose, setting, background, objects, composition, camera, lighting, style, mood, dialogue lines, timing, shot structure, format, syntax, special tokens (score tags, quality tags, <image1>, <Picture 1>, field labels) and the original's length.
+- Do not improve, extend or shorten the prompt beyond the swap.
+
+""" + COMMON
+
+
 def _preset(description, system_prompt, negative, temperature, top_p, max_tokens, words=""):
     return {
         "description": description,
@@ -414,6 +427,12 @@ def _build():
             "Caption the image connected to image_1. Optional text: extra instructions or a "
             "question about the image.",
             DESCRIBE_IMAGE, "", 0.3, 1.0, 8192),
+        "Recast ▸ Swap persons": _preset(
+            "Swap the persons in an existing prompt (e.g. from '📜 Load from archive...') for "
+            "the persons selected in person_1..4 - action, background, style and format stay. "
+            "Optional instruction in the text, e.g. 'replace the man with Person 1'.",
+            RECAST, "", 0.2, 1.0, 8192,
+            "no fixed range - keeps the length of the original prompt"),
     }
     for task, prefix in (("idea", "Idea"), ("caption", "Caption")):
         for t in TARGETS:

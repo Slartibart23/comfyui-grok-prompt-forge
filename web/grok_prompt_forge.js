@@ -4,6 +4,9 @@
 // - "Save preset as..." stores the current values under a name of your own
 //   (ComfyUI/user/grok_prompt_forge/presets.json), "Delete preset" removes it
 // - "Refresh model list" loads the current model ids from the xAI API
+// - "Persons & styles..." edits your library (ComfyUI/user/grok_prompt_forge/
+//   library.json) with export / import; person_1..4 and style_1..2 follow it
+// - "Load from archive..." puts an archived prompt into the text field
 
 const { app } = window.comfyAPI.app;
 const { api } = window.comfyAPI.api;
@@ -185,6 +188,280 @@ function addButton(node, label, handler) {
   return w;
 }
 
+// ------------------------------------------------------------------ dialogs
+// Plain DOM modal in ComfyUI's colours. It sits below ComfyUI's own dialogs
+// (z-index 1000), so confirm boxes and toasts appear on top of it.
+const NONE = "(none)";
+const RECAST = "Recast ▸ Swap persons"; // built-in preset name, see builtin_presets.py
+
+function el(tag, props = {}, ...children) {
+  const e = document.createElement(tag);
+  const { style, ...rest } = props;
+  Object.assign(e, rest);
+  if (style) Object.assign(e.style, style);
+  for (const c of children) e.append(c);
+  return e;
+}
+
+const INPUT_STYLE = {
+  width: "100%", boxSizing: "border-box", padding: "6px 8px", borderRadius: "6px",
+  border: "1px solid var(--border-color, #555)", background: "var(--comfy-input-bg, #222)",
+  color: "var(--input-text, #ddd)", font: "inherit",
+};
+const BUTTON_STYLE = {
+  padding: "6px 12px", borderRadius: "6px", border: "1px solid var(--border-color, #555)",
+  background: "var(--comfy-input-bg, #333)", color: "var(--input-text, #ddd)", cursor: "pointer",
+};
+const HINT_STYLE = { fontSize: "12px", opacity: 0.7, margin: "2px 0 10px" };
+
+function button(label, onclick, extra = {}) {
+  return el("button", { textContent: label, onclick, style: { ...BUTTON_STYLE, ...extra } });
+}
+
+function modal(title, width = "820px") {
+  const overlay = el("div", { style: {
+    position: "fixed", inset: "0", background: "rgba(0,0,0,0.5)", zIndex: 1000,
+    display: "flex", alignItems: "center", justifyContent: "center" } });
+  const body = el("div", { style: { padding: "14px", overflow: "auto", flex: "1" } });
+  const close = () => { overlay.remove(); document.removeEventListener("keydown", onKey); };
+  const onKey = (e) => {
+    // Escape closes unless one of ComfyUI's own dialogs is open on top
+    if (e.key === "Escape" && !document.querySelector(".p-dialog")) close();
+  };
+  const panel = el("div", { style: {
+    width, maxWidth: "95vw", maxHeight: "90vh", display: "flex", flexDirection: "column",
+    background: "var(--comfy-menu-bg, #2a2a2a)", color: "var(--fg-color, #ddd)",
+    border: "1px solid var(--border-color, #555)", borderRadius: "10px",
+    boxShadow: "0 10px 40px rgba(0,0,0,0.5)", fontSize: "14px" } },
+    el("div", { style: { display: "flex", alignItems: "center", padding: "10px 14px",
+      borderBottom: "1px solid var(--border-color, #555)" } },
+      el("b", { textContent: title, style: { flex: "1" } }),
+      button("✕", close, { padding: "2px 8px" })),
+    body);
+  overlay.append(panel);
+  overlay.addEventListener("mousedown", (e) => { if (e.target === overlay) close(); });
+  document.addEventListener("keydown", onKey);
+  document.body.append(overlay);
+  return { body, close };
+}
+
+// -------------------------------------------------- persons & style blocks
+const LIBRARY = {
+  person: {
+    tab: "👤 Persons", slots: ["person_1", "person_2", "person_3", "person_4"],
+    fields: [
+      { key: "trigger", label: "Trigger", rows: 1,
+        hint: "The LoRA's trigger token or name, written into the prompt exactly like this. Empty = no trigger (the person is introduced by the description)." },
+      { key: "description", label: "Description", rows: 5,
+        hint: "Appearance and fixed traits (face, hair, body, age, typical look). Binding in every prompt; tag models get it as tags." },
+      { key: "voice", label: "Voice", rows: 2,
+        hint: "Timbre, pitch, pace, accent, e.g. 'deep raspy male voice, slow, northern German accent'. Used only by models with audio: MiniMax H3 FL2VA / REF2VA, Wan 2.7, Wan 3.0. Ignored by Wan 2.2 and all image models." },
+    ],
+  },
+  style: {
+    tab: "🎨 Style blocks", slots: ["style_1", "style_2"],
+    fields: [
+      { key: "text", label: "Text", rows: 6,
+        hint: "Applied to every result while selected, e.g. a camera look ('shot on 35mm film, grain, muted colours'), a lighting mood or a ban list ('never: golden hour, neon lights')." },
+    ],
+  },
+};
+
+async function fetchLibrary() {
+  return (await api.fetchApi("/grok_prompt_forge/library")).json();
+}
+
+// Show the new name lists on every node; renamed / deleted entries are followed.
+function updateLibraryLists(data, kind, renamed = null) {
+  const lists = { person: data.persons, style: data.styles };
+  for (const node of forgeNodes()) {
+    for (const k of Object.keys(LIBRARY)) {
+      for (const slot of LIBRARY[k].slots) {
+        const w = widget(node, slot);
+        if (!w) continue;
+        if (k === kind && renamed && w.value === renamed.from) w.value = renamed.to ?? NONE;
+        w.options.values = lists[k].includes(w.value) ? lists[k] : [w.value, ...lists[k]];
+      }
+    }
+    node.setDirtyCanvas?.(true, true);
+  }
+}
+
+async function postJson(url, body) {
+  const resp = await api.fetchApi(url, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+  });
+  const data = await resp.json();
+  if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`);
+  return data;
+}
+
+async function openLibrary(node, startKind = "person") {
+  let data = await fetchLibrary();
+  let kind = startKind;
+  let selected = null; // name being edited, null = new entry
+  const { body } = modal("Grok Prompt Forge · persons & style blocks");
+
+  const tabs = el("div", { style: { display: "flex", gap: "6px", marginBottom: "12px" } });
+  const main = el("div", { style: { display: "flex", gap: "14px", minHeight: "360px" } });
+  const list = el("div", { style: { width: "220px", flexShrink: 0, display: "flex",
+    flexDirection: "column", gap: "4px", overflow: "auto", maxHeight: "60vh" } });
+  const form = el("div", { style: { flex: "1" } });
+  const footer = el("div", { style: { display: "flex", gap: "8px", marginTop: "12px",
+    borderTop: "1px solid var(--border-color, #555)", paddingTop: "10px", alignItems: "center" } });
+  main.append(list, form);
+  body.append(tabs, main, footer);
+
+  const entries = () => data.library[kind === "person" ? "persons" : "styles"];
+
+  function renderTabs() {
+    tabs.replaceChildren(...Object.entries(LIBRARY).map(([k, spec]) =>
+      button(spec.tab, () => { kind = k; selected = null; render(); },
+        k === kind ? { borderColor: "var(--p-primary-color, #4a90e2)", fontWeight: "bold" } : {})));
+  }
+
+  function renderList() {
+    const names = Object.keys(entries()).sort((a, b) => a.localeCompare(b));
+    list.replaceChildren(
+      button("＋ New", () => { selected = null; renderForm(); }, { textAlign: "left" }),
+      ...names.map((n) => button(n, () => { selected = n; renderForm(); }, {
+        textAlign: "left", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+        ...(n === selected ? { borderColor: "var(--p-primary-color, #4a90e2)" } : {}) })),
+      names.length ? "" : el("div", { textContent: "Nothing saved yet.", style: HINT_STYLE }));
+  }
+
+  function renderForm() {
+    renderList();
+    const spec = LIBRARY[kind];
+    const values = selected ? entries()[selected] : {};
+    const nameInput = el("input", { value: selected ?? "", placeholder: "Name shown in the selection box",
+      style: INPUT_STYLE });
+    const inputs = {};
+    const rows = [el("label", { textContent: "Name" }), nameInput,
+      el("div", { textContent: "Only a label for the selection box - it is never written into the prompt.", style: HINT_STYLE })];
+    for (const f of spec.fields) {
+      const input = f.rows > 1
+        ? el("textarea", { value: values[f.key] ?? "", rows: f.rows, style: { ...INPUT_STYLE, resize: "vertical" } })
+        : el("input", { value: values[f.key] ?? "", style: INPUT_STYLE });
+      input.title = f.hint;
+      inputs[f.key] = input;
+      rows.push(el("label", { textContent: f.label }), input, el("div", { textContent: f.hint, style: HINT_STYLE }));
+    }
+    const save = button("💾 Save", async () => {
+      try {
+        const vals = Object.fromEntries(Object.entries(inputs).map(([k, i]) => [k, i.value]));
+        const res = await postJson("/grok_prompt_forge/library",
+          { kind, name: nameInput.value, values: vals, old_name: selected });
+        const renamed = selected && selected !== res.name ? { from: selected, to: res.name } : null;
+        data = res;
+        selected = res.name;
+        updateLibraryLists(data, kind, renamed);
+        toast("success", "Saved", res.name);
+        renderForm();
+      } catch (e) { toast("error", "Not saved", String(e.message ?? e)); }
+    }, { fontWeight: "bold" });
+    const del = button("🗑 Delete", async () => {
+      if (!selected || !(await confirmBox(`Delete "${selected}" from your library?`))) return;
+      try {
+        data = await postJson("/grok_prompt_forge/library/delete", { kind, name: selected });
+        updateLibraryLists(data, kind, { from: selected, to: null });
+        toast("success", "Deleted", selected);
+        selected = null;
+        renderForm();
+      } catch (e) { toast("error", "Not deleted", String(e.message ?? e)); }
+    });
+    del.disabled = !selected;
+    del.style.opacity = selected ? 1 : 0.4;
+    form.replaceChildren(...rows, el("div", { style: { display: "flex", gap: "8px" } }, save, del));
+  }
+
+  function renderFooter() {
+    const fileInput = el("input", { type: "file", accept: ".json,application/json", style: { display: "none" } });
+    fileInput.onchange = async () => {
+      const file = fileInput.files?.[0];
+      fileInput.value = "";
+      if (!file) return;
+      try {
+        const payload = JSON.parse(await file.text());
+        const lib = data.library;
+        const clashes = ["persons", "styles"].flatMap((k) =>
+          Object.keys(payload[k] || {}).filter((n) => n in lib[k]));
+        let overwrite = false;
+        if (clashes.length) {
+          overwrite = await confirmBox(
+            `${clashes.length} name(s) already exist in your library (${clashes.slice(0, 5).join(", ")}${clashes.length > 5 ? ", ..." : ""}). Replace them with the imported ones? Cancel keeps yours and imports only the new names.`);
+        }
+        const res = await postJson("/grok_prompt_forge/library/import", { data: payload, overwrite });
+        data = res;
+        updateLibraryLists(data, null);
+        toast("success", "Imported", `${res.added} added, ${res.replaced} replaced, ${res.skipped} skipped`);
+        render();
+      } catch (e) { toast("error", "Import failed", String(e.message ?? e)); }
+    };
+    const exportBtn = button("⬇ Export library", () => {
+      const blob = new Blob([JSON.stringify(data.library, null, 2)], { type: "application/json" });
+      const a = el("a", { href: URL.createObjectURL(blob), download: "grok_prompt_forge_library.json" });
+      document.body.append(a);
+      a.click();
+      setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    });
+    exportBtn.title = "Download all persons and style blocks as one JSON file, e.g. to move them to another ComfyUI install.";
+    const importBtn = button("⬆ Import...", () => fileInput.click());
+    importBtn.title = "Add persons and style blocks from an exported JSON file.";
+    footer.replaceChildren(exportBtn, importBtn, fileInput,
+      el("div", { style: { ...HINT_STYLE, margin: "0 0 0 auto" },
+        textContent: "Stored in ComfyUI/user/grok_prompt_forge/library.json" }));
+  }
+
+  function render() { renderTabs(); renderForm(); renderFooter(); }
+  render();
+}
+
+// ------------------------------------------------------------------ archive
+async function openArchive(node) {
+  const { body, close } = modal("Grok Prompt Forge · load from archive", "900px");
+  const search = el("input", { placeholder: "Search prompts, inputs, presets, persons...", style: INPUT_STYLE });
+  const results = el("div", { style: { display: "flex", flexDirection: "column", gap: "8px", marginTop: "10px" } });
+  body.append(search,
+    el("div", { style: HINT_STYLE, textContent:
+      "'Use as text' puts the prompt into the text field. 'Recast' also selects the preset 'Recast ▸ Swap persons' and the archived negative prompt - then choose person_1..4 and add an instruction such as 'replace the man with Person 1'." }),
+    results);
+
+  const use = async (entry, recast) => {
+    if (recast) {
+      widget(node, "preset").value = RECAST;
+      await applyPreset(node, RECAST);
+      if (entry.negative_prompt) setValue(node, "negative_prompt", entry.negative_prompt);
+    }
+    setValue(node, "text", entry.prompt);
+    node.setDirtyCanvas?.(true, true);
+    close();
+    toast("success", recast ? "Ready to recast" : "Loaded into text",
+      recast ? "Choose person_1..4 and say whom to replace in the text." : entry.preset);
+  };
+
+  let timer = null;
+  const load = async () => {
+    const q = encodeURIComponent(search.value.trim());
+    const data = await (await api.fetchApi(`/grok_prompt_forge/archive?limit=200&q=${q}`)).json();
+    const entries = data.entries || [];
+    results.replaceChildren(...(entries.length ? entries.map((e) => {
+      const meta = [e.time, e.preset, e.persons?.length ? `persons: ${e.persons.join(", ")}` : ""]
+        .filter(Boolean).join(" · ");
+      return el("div", { style: { border: "1px solid var(--border-color, #555)", borderRadius: "8px", padding: "8px" } },
+        el("div", { textContent: meta, style: { fontSize: "12px", opacity: 0.7, marginBottom: "4px" } }),
+        el("div", { textContent: e.prompt, title: e.prompt, style: { whiteSpace: "pre-wrap",
+          display: "-webkit-box", WebkitLineClamp: "3", WebkitBoxOrient: "vertical", overflow: "hidden" } }),
+        el("div", { style: { display: "flex", gap: "8px", marginTop: "6px" } },
+          button("Use as text", () => use(e, false)), button("Recast", () => use(e, true))));
+    }) : [el("div", { style: HINT_STYLE, textContent: search.value
+      ? "Nothing found." : "The archive is empty. Results are archived while 'archive' is on." })]));
+  };
+  search.oninput = () => { clearTimeout(timer); timer = setTimeout(load, 250); };
+  await load();
+  search.focus();
+}
+
 app.registerExtension({
   name: "GrokPromptForge.Presets",
 
@@ -207,6 +484,8 @@ app.registerExtension({
       addButton(node, "💾 Save preset as...", savePreset);
       addButton(node, "🗑 Delete preset", deletePreset);
       addButton(node, "🔄 Refresh model list", refreshModels);
+      addButton(node, "👤 Persons & styles...", openLibrary);
+      addButton(node, "📜 Load from archive...", openArchive);
       showWordHint(node);
       return r;
     };

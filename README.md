@@ -18,7 +18,7 @@ Edit instruction with reference images:
 
 | Node | Purpose |
 |---|---|
-| **Grok Prompt Forge (xAI)** | One node for prompt writing, caption rewriting and image captioning. It has three optional image inputs, a custom system prompt input and 29 built-in task presets. You can save your own presets under any name. Outputs `prompt` and `negative_prompt`. |
+| **Grok Prompt Forge (xAI)** | One node for prompt writing, caption rewriting and image captioning. It has three optional image inputs, a custom system prompt input and 30 built-in task presets. You can save your own presets under any name, pick up to four persons and two style blocks from your own library, and reload results from the prompt archive. Outputs `prompt` and `negative_prompt`. |
 | **Grok System Prompt Loader** | Loads a system prompt from a `.txt` file and reloads it automatically when the file changes. Connect it to `custom_system_prompt`. |
 | **Grok Text File Loader (Batch)** | Loads `.txt` files from any folder one after another, in natural sort order, for batch runs. Outputs the text, the filename without extension, the full path and the file count. |
 | Grok Text Refine / Grok Vision Caption *(legacy)* | The two separate API nodes from v2. They are still registered so existing workflows keep loading and running, but they are hidden from the node search. Their tasks are now done by Grok Prompt Forge. |
@@ -42,6 +42,7 @@ The preset only labels the values. The node always runs with the values shown in
 | Custom system prompt | Your own system prompt. Left empty, only the node's own rules are sent (see below). |
 | Caption ▸ LoRA training caption | Refines a raw caption (e.g. from JoyCaption) into a training caption. If you put your LoRA's trigger token into `trigger_word`, the subject's fixed traits are removed so they bind to that token. |
 | Caption ▸ Describe image | Captions `image_1`. Optional text adds extra instructions or a question about the image. |
+| Recast ▸ Swap persons | Swaps the persons in an existing prompt for the selected `person_1..4`; everything else stays (see below). |
 | Idea ▸ *target* | Expands a short idea into a full prompt for the target model. |
 | Caption ▸ *target* | Rewrites an existing caption faithfully (nothing new is added) into the target model's prompt style. |
 
@@ -85,9 +86,29 @@ For Illustrious, Pony and SDXL they follow the model cards plus established comm
 | `negative_prompt` | Passed straight to the `negative_prompt` output. It is not sent to Grok. |
 | `min_words` / `max_words` | Optional length of the result, 0 = off. The tooltip shows the length recommended for the selected preset's target model. When set, the range is binding and overrides the preset's length guidance. Tag lists count each tag as one word; MiniMax H3 formats apply the range to the main description. |
 
+### Persons, style blocks and the archive
+
+**👤 Persons & styles...** opens your library. It is stored in `ComfyUI/user/grok_prompt_forge/library.json`, so your characters never end up in the node pack or a repository.
+
+| Library entry | Fields | Used by |
+|---|---|---|
+| Person | **Name:** a label for the selection box, never written into the prompt. **Trigger:** the LoRA's trigger token, written exactly. **Description:** appearance and fixed traits, binding. **Voice:** timbre, pitch, pace, accent. | `person_1` … `person_4`. The voice is used only by MiniMax H3 FL2VA / REF2VA, Wan 2.7 and Wan 3.0, the models with audio. |
+| Style block | **Text:** e.g. a camera look, a lighting mood or a ban list | `style_1`, `style_2`; applied to every result |
+
+- **Using persons in your text:** refer to a selected person by name or as "Person 1"…"Person 4". Selected persons always appear in the result, even if the text doesn't mention them. Tag models (Pony, Illustrious, SDXL) get the trigger first and the description as tags.
+- **`link_person_images`** (on by default): `image_N` shows Person N; `person_4` has no image slot. The prompt then refers to the image with the model's reference syntax instead of describing the face.
+  - Most useful for Qwen-Image-Edit (`<imageN>`), MiniMax H3 REF2VA (`<Picture N>`), Wan 2.7 / 3.0 reference-to-video ("Image N") and FLUX.2 multi-reference.
+  - Turn it off when the images mean something else, e.g. the first and last frame of H3 FL2VA.
+- **Export / Import** in the dialog moves the library between installs. On import you choose whether names that already exist are replaced or kept.
+- **Archive:** with `archive` on, every result is appended to `ComfyUI/user/grok_prompt_forge/archive.jsonl` together with its input, preset, persons and settings. **📜 Load from archive...** searches it:
+  - *Use as text* puts an archived prompt into `text`.
+  - *Recast* also selects the preset **"Recast ▸ Swap persons"** and the archived negative prompt.
+
+  Then pick the new person(s) and add an instruction such as "replace the man with Person 1". The action, background, lighting, camera, style and format stay as they are; only the person changes, including pronouns and gendered details.
+
 ### Rules added to every request
 
-Two rules are appended to every system prompt, whether built-in, edited or connected via `custom_system_prompt`:
+These rules are appended to every system prompt, whether built-in, edited or connected via `custom_system_prompt`. The two below always apply; the persons and the selected style blocks are added as binding sections in the same way.
 
 - **The user's input is binding.** Every explicit wish or instruction in `text` is carried out, for example "no people", "night scene" or "write it as one sentence without score tags". If it conflicts with the preset's guidance, the input wins. Only the output format and the English-output rule stay.
 - **Length,** only if `min_words` or `max_words` is set.
